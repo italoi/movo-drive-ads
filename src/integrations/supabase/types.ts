@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_play_logs: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          driver_email: string
+          id: string
+          played_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          driver_email: string
+          id?: string
+          played_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          driver_email?: string
+          id?: string
+          played_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_play_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           audio_url: string | null

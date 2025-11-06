@@ -80,7 +80,7 @@ export default function Dashboard() {
               </p>
               <div className="flex gap-4">
                 <Button onClick={() => navigate('/campanhas')}>Criar Nova Campanha</Button>
-                <Button variant="outline">Gerenciar Motoristas</Button>
+                <Button variant="outline" onClick={() => navigate('/relatorios')}>Ver Relatórios</Button>
               </div>
             </CardContent>
           </Card>

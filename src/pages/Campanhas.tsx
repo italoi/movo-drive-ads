@@ -7,9 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, MapPin } from "lucide-react";
+import { Loader2, Upload, MapPin, Trash2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+
+type Campaign = {
+  id: string;
+  titulo: string;
+  cliente: string;
+  horario_inicio: string;
+  horario_fim: string;
+  raio_km: number;
+  tipos_servico_segmentados: string[];
+  localizacao: { lat: number; lng: number };
+  audio_url: string | null;
+  created_at: string;
+};
 
 const Campanhas = () => {
   const navigate = useNavigate();
@@ -23,6 +37,8 @@ const Campanhas = () => {
   const [showTokenInput, setShowTokenInput] = useState(true);
   const [loading, setLoading] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -36,6 +52,62 @@ const Campanhas = () => {
   });
 
   const servicoOptions = ["X", "Comfort", "Black"];
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      
+      const mappedCampaigns = (data || []).map(campaign => ({
+        ...campaign,
+        localizacao: campaign.localizacao as { lat: number; lng: number }
+      }));
+      
+      setCampaigns(mappedCampaigns);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar campanhas",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta campanha?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Campanha excluída",
+        description: "A campanha foi excluída com sucesso",
+      });
+
+      fetchCampaigns();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir campanha",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const initializeMap = (token: string) => {
     if (!mapContainer.current || map.current) return;
@@ -181,7 +253,19 @@ const Campanhas = () => {
         description: "A campanha foi criada com sucesso",
       });
 
-      navigate("/dashboard");
+      fetchCampaigns();
+      
+      // Reset form
+      setFormData({
+        titulo: "",
+        cliente: "",
+        horario_inicio: "",
+        horario_fim: "",
+        raio_km: "",
+        tipos_servico_segmentados: [],
+        localizacao: { lat: -23.5505, lng: -46.6333 },
+        audio_url: "",
+      });
     } catch (error: any) {
       toast({
         title: "Erro ao criar campanha",
@@ -342,6 +426,57 @@ const Campanhas = () => {
             )}
           </Button>
         </form>
+
+        <div className="max-w-4xl mx-auto mt-12">
+          <h2 className="text-2xl font-bold text-foreground mb-6">Campanhas Cadastradas</h2>
+          
+          {loadingCampaigns ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : campaigns.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma campanha cadastrada ainda
+            </div>
+          ) : (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Título</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Horário</TableHead>
+                    <TableHead>Raio (km)</TableHead>
+                    <TableHead>Serviços</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {campaigns.map((campaign) => (
+                    <TableRow key={campaign.id}>
+                      <TableCell className="font-medium">{campaign.titulo}</TableCell>
+                      <TableCell>{campaign.cliente}</TableCell>
+                      <TableCell>
+                        {campaign.horario_inicio} - {campaign.horario_fim}
+                      </TableCell>
+                      <TableCell>{campaign.raio_km}</TableCell>
+                      <TableCell>{campaign.tipos_servico_segmentados.join(", ")}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteCampaign(campaign.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

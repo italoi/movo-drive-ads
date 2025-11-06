@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Campanhas from "./pages/Campanhas";
+import Relatorios from "./pages/Relatorios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Campanhas />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/relatorios" 
+              element={
+                <ProtectedRoute>
+                  <Relatorios />
                 </ProtectedRoute>
               } 
             />
