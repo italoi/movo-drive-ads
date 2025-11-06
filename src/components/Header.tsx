@@ -19,13 +19,14 @@ export const Header = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline-red" 
-            size="default"
-            onClick={scrollToForm}
-          >
-            Sou Motorista
-          </Button>
+          <Link to="/motorista-login">
+            <Button 
+              variant="outline-red" 
+              size="default"
+            >
+              Sou Motorista
+            </Button>
+          </Link>
           <Button 
             variant="hero-primary" 
             size="default"
@@ -35,7 +36,7 @@ export const Header = () => {
           </Button>
           <Link to="/auth">
             <Button variant="outline" size="default">
-              Login
+              Login Admin
             </Button>
           </Link>
         </div>
