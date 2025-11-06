@@ -13,6 +13,7 @@ import Campanhas from "./pages/Campanhas";
 import Relatorios from "./pages/Relatorios";
 import MotoristaLogin from "./pages/MotoristaLogin";
 import MotoristaDashboard from "./pages/MotoristaDashboard";
+import PerfilMotorista from "./pages/PerfilMotorista";
 import Mapa from "./pages/Mapa";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,14 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/motorista-login" element={<MotoristaLogin />} />
+            <Route 
+              path="/perfil-motorista" 
+              element={
+                <MotoristaProtectedRoute>
+                  <PerfilMotorista />
+                </MotoristaProtectedRoute>
+              } 
+            />
             <Route 
               path="/motorista" 
               element={
