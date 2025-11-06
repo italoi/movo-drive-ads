@@ -7,23 +7,34 @@ import { useToast } from "@/hooks/use-toast";
 import { Play, Pause, LogOut, Car, MapPin } from "lucide-react";
 import { Geolocation } from '@capacitor/geolocation';
 import movoLogo from "@/assets/movo-logo-corrected.png";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function MotoristaDashboard() {
   const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
   const [tipoServico, setTipoServico] = useState("");
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [currentCampaign, setCurrentCampaign] = useState<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRideActive, setIsRideActive] = useState(false);
   const [totalPlays, setTotalPlays] = useState(0);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     getCurrentUser();
     getTotalPlays();
+    loadCampaigns();
     
     // Cleanup audio on unmount
     return () => {
@@ -31,8 +42,30 @@ export default function MotoristaDashboard() {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+      }
     };
   }, []);
+
+  const loadCampaigns = async () => {
+    const { data, error } = await supabase
+      .from("campaigns")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading campaigns:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as campanhas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCampaigns(data || []);
+  };
 
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -130,7 +163,15 @@ export default function MotoristaDashboard() {
 
   const handleStartRide = async () => {
     if (!isRideActive) {
-      // Get location first
+      if (!selectedCampaignId) {
+        toast({
+          title: "Selecione uma campanha",
+          description: "Escolha uma campanha antes de iniciar a corrida",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const location = await getCurrentLocation();
       
       if (!tipoServico) {
@@ -145,11 +186,16 @@ export default function MotoristaDashboard() {
       setIsRideActive(true);
       toast({
         title: "Corrida iniciada!",
-        description: "Buscando anúncios para sua localização...",
+        description: "Os anúncios serão tocados a cada 45 segundos...",
       });
       
-      // Start playing ads automatically
-      handlePlayAd(location);
+      // Start playing the selected campaign audio immediately
+      playSelectedCampaignAudio();
+      
+      // Set up interval to play every 45 seconds
+      playIntervalRef.current = setInterval(() => {
+        playSelectedCampaignAudio();
+      }, 45000);
     } else {
       setIsRideActive(false);
       setIsPlaying(false);
@@ -160,11 +206,85 @@ export default function MotoristaDashboard() {
         audioRef.current = null;
       }
       
+      // Clear interval
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+      
       toast({
         title: "Corrida finalizada",
         description: "Você pode iniciar uma nova corrida quando quiser",
       });
     }
+  };
+
+  const playSelectedCampaignAudio = async () => {
+    const campaign = campaigns.find(c => c.id === selectedCampaignId);
+    
+    if (!campaign || !campaign.audio_url) {
+      toast({
+        title: "Erro",
+        description: "Campanha não possui áudio",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCurrentCampaign(campaign);
+    setIsPlaying(true);
+
+    // Create audio element and play
+    const audio = new Audio(campaign.audio_url);
+    audioRef.current = audio;
+
+    audio.onloadeddata = () => {
+      console.log('Audio loaded, starting playback');
+      audio.play().catch(error => {
+        console.error('Error playing audio:', error);
+        toast({
+          title: "Erro ao tocar áudio",
+          description: "Não foi possível reproduzir o anúncio",
+          variant: "destructive",
+        });
+        setIsPlaying(false);
+      });
+    };
+
+    audio.onplay = async () => {
+      console.log('Audio started playing, logging to database');
+      
+      // Log the play immediately when audio starts
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.from("ad_play_logs").insert({
+          campaign_id: campaign.id,
+          driver_email: user.email,
+        });
+        
+        if (error) {
+          console.error('Error logging ad play:', error);
+        } else {
+          console.log('Ad play logged successfully');
+          getTotalPlays();
+        }
+      }
+    };
+
+    audio.onended = () => {
+      console.log('Audio ended');
+      setIsPlaying(false);
+    };
+
+    audio.onerror = (error) => {
+      console.error('Audio error:', error);
+      setIsPlaying(false);
+      toast({
+        title: "Erro no áudio",
+        description: "Houve um problema ao tocar o anúncio",
+        variant: "destructive",
+      });
+    };
   };
 
   const handlePauseAd = () => {
@@ -320,6 +440,25 @@ export default function MotoristaDashboard() {
           </div>
         </Card>
 
+        {/* Campaign Selection */}
+        <Card className="p-6 mb-4">
+          <div className="space-y-4">
+            <label className="text-sm font-medium">Campanhas próximas de você</label>
+            <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId} disabled={isRideActive}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.titulo} - {campaign.cliente}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+
         {/* Ride Control */}
         <Card className="p-8 mb-4">
           <div className="text-center space-y-6">
@@ -351,7 +490,7 @@ export default function MotoristaDashboard() {
               ) : (
                 <>
                   <Car className="mr-2 h-6 w-6" />
-                  Iniciar Corrida Simulada
+                  Iniciar Corrida
                 </>
               )}
             </Button>
@@ -371,8 +510,8 @@ export default function MotoristaDashboard() {
 
             <p className="text-sm text-muted-foreground">
               {isRideActive 
-                ? "Anúncios serão tocados automaticamente durante a corrida"
-                : "Inicie uma corrida para começar a ganhar com anúncios"}
+                ? "O anúncio da campanha selecionada será tocado a cada 45 segundos"
+                : "Selecione uma campanha e inicie a corrida para começar a ganhar"}
             </p>
           </div>
         </Card>
