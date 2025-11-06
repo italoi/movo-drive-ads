@@ -5,11 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { MotoristaProtectedRoute } from "@/components/MotoristaProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Campanhas from "./pages/Campanhas";
 import Relatorios from "./pages/Relatorios";
+import MotoristaLogin from "./pages/MotoristaLogin";
+import MotoristaDashboard from "./pages/MotoristaDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +27,15 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/motorista-login" element={<MotoristaLogin />} />
+            <Route 
+              path="/motorista" 
+              element={
+                <MotoristaProtectedRoute>
+                  <MotoristaDashboard />
+                </MotoristaProtectedRoute>
+              } 
+            />
             <Route 
               path="/dashboard" 
               element={
