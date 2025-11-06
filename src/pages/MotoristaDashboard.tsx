@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Pause, LogOut, Car } from "lucide-react";
+import { Play, Pause, LogOut, Car, MapPin } from "lucide-react";
+import { Geolocation } from '@capacitor/geolocation';
 import movoLogo from "@/assets/movo-logo-corrected.png";
 
 export default function MotoristaDashboard() {
@@ -15,12 +16,22 @@ export default function MotoristaDashboard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRideActive, setIsRideActive] = useState(false);
   const [totalPlays, setTotalPlays] = useState(0);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     getCurrentUser();
     getTotalPlays();
+    
+    // Cleanup audio on unmount
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   const getCurrentUser = async () => {
@@ -54,39 +65,101 @@ export default function MotoristaDashboard() {
     setTotalPlays(count || 0);
   };
 
-  const getRandomCampaign = async () => {
-    const { data, error } = await supabase
-      .from("campaigns")
-      .select("*")
-      .limit(10);
+  const getCurrentLocation = async () => {
+    try {
+      const coordinates = await Geolocation.getCurrentPosition();
+      const location = {
+        lat: coordinates.coords.latitude,
+        lng: coordinates.coords.longitude,
+      };
+      setCurrentLocation(location);
+      console.log('Current location:', location);
+      return location;
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast({
+        title: "Erro de localização",
+        description: "Não foi possível obter sua localização. Usando localização de teste.",
+        variant: "destructive",
+      });
+      // Fallback location (São Paulo center)
+      const fallbackLocation = { lat: -23.5505, lng: -46.6333 };
+      setCurrentLocation(fallbackLocation);
+      return fallbackLocation;
+    }
+  };
 
-    if (error) {
+  const getAdForDriver = async (location: { lat: number; lng: number }) => {
+    try {
+      console.log('Calling get_ad_for_driver with:', { location, tipoServico });
+      
+      const { data, error } = await supabase.functions.invoke('get_ad_for_driver', {
+        body: {
+          latitude: location.lat,
+          longitude: location.lng,
+          tipo_servico: tipoServico,
+        },
+      });
+
+      if (error) {
+        console.error('Error calling get_ad_for_driver:', error);
+        throw error;
+      }
+
+      console.log('Response from get_ad_for_driver:', data);
+
+      if (!data.audio_url) {
+        toast({
+          title: "Sem campanhas",
+          description: data.message || "Nenhuma campanha disponível para sua localização",
+        });
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getAdForDriver:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar campanhas",
+        description: "Não foi possível buscar campanha",
         variant: "destructive",
       });
       return null;
     }
-
-    if (data && data.length > 0) {
-      return data[Math.floor(Math.random() * data.length)];
-    }
-    return null;
   };
 
-  const handleStartRide = () => {
+  const handleStartRide = async () => {
     if (!isRideActive) {
+      // Get location first
+      const location = await getCurrentLocation();
+      
+      if (!tipoServico) {
+        toast({
+          title: "Perfil incompleto",
+          description: "Configure seu tipo de serviço no perfil",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsRideActive(true);
       toast({
         title: "Corrida iniciada!",
-        description: "Anúncios serão tocados automaticamente durante a corrida",
+        description: "Buscando anúncios para sua localização...",
       });
+      
       // Start playing ads automatically
-      handlePlayAd();
+      handlePlayAd(location);
     } else {
       setIsRideActive(false);
       setIsPlaying(false);
+      
+      // Stop audio if playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      
       toast({
         title: "Corrida finalizada",
         description: "Você pode iniciar uma nova corrida quando quiser",
@@ -95,7 +168,8 @@ export default function MotoristaDashboard() {
   };
 
   const handlePauseAd = () => {
-    if (isPlaying) {
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
       setIsPlaying(false);
       toast({
         title: "Anúncio pausado",
@@ -104,7 +178,7 @@ export default function MotoristaDashboard() {
     }
   };
 
-  const handlePlayAd = async () => {
+  const handlePlayAd = async (location?: { lat: number; lng: number }) => {
     if (!isRideActive) {
       toast({
         title: "Inicie uma corrida primeiro",
@@ -113,31 +187,68 @@ export default function MotoristaDashboard() {
       return;
     }
 
-    const campaign = await getRandomCampaign();
-    if (!campaign) {
+    const locationToUse = location || currentLocation;
+    if (!locationToUse) {
       toast({
-        title: "Sem campanhas",
-        description: "Não há campanhas disponíveis no momento",
+        title: "Localização não disponível",
+        description: "Aguarde enquanto obtemos sua localização",
       });
       return;
     }
 
-    setCurrentCampaign(campaign);
-    setIsPlaying(true);
-
-    // Log the play
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("ad_play_logs").insert({
-        campaign_id: campaign.id,
-        driver_email: user.email,
-      });
-      
-      getTotalPlays();
+    // Get ad based on location and tipo_servico
+    const campaignData = await getAdForDriver(locationToUse);
+    
+    if (!campaignData || !campaignData.audio_url) {
+      // Wait and try again if ride is still active
+      if (isRideActive) {
+        setTimeout(() => handlePlayAd(), 5000);
+      }
+      return;
     }
 
-    // Simulate audio playing for 5 seconds
-    setTimeout(() => {
+    setCurrentCampaign(campaignData);
+    setIsPlaying(true);
+
+    // Create audio element and play
+    const audio = new Audio(campaignData.audio_url);
+    audioRef.current = audio;
+
+    audio.onloadeddata = () => {
+      console.log('Audio loaded, starting playback');
+      audio.play().catch(error => {
+        console.error('Error playing audio:', error);
+        toast({
+          title: "Erro ao tocar áudio",
+          description: "Não foi possível reproduzir o anúncio",
+          variant: "destructive",
+        });
+        setIsPlaying(false);
+      });
+    };
+
+    audio.onplay = async () => {
+      console.log('Audio started playing, logging to database');
+      
+      // Log the play immediately when audio starts
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.from("ad_play_logs").insert({
+          campaign_id: campaignData.campaign_id,
+          driver_email: user.email,
+        });
+        
+        if (error) {
+          console.error('Error logging ad play:', error);
+        } else {
+          console.log('Ad play logged successfully');
+          getTotalPlays();
+        }
+      }
+    };
+
+    audio.onended = () => {
+      console.log('Audio ended');
       setIsPlaying(false);
       toast({
         title: "Anúncio tocado!",
@@ -148,7 +259,22 @@ export default function MotoristaDashboard() {
       if (isRideActive) {
         setTimeout(() => handlePlayAd(), 3000);
       }
-    }, 5000);
+    };
+
+    audio.onerror = (error) => {
+      console.error('Audio error:', error);
+      setIsPlaying(false);
+      toast({
+        title: "Erro no áudio",
+        description: "Houve um problema ao tocar o anúncio",
+        variant: "destructive",
+      });
+      
+      // Try next ad if ride is still active
+      if (isRideActive) {
+        setTimeout(() => handlePlayAd(), 3000);
+      }
+    };
   };
 
   const handleSignOut = async () => {
@@ -176,7 +302,17 @@ export default function MotoristaDashboard() {
             <p className="text-lg text-muted-foreground mb-1">
               {tipoServico || "Tipo de serviço não informado"}
             </p>
-            <p className="text-sm text-muted-foreground mb-4">{userEmail}</p>
+            <p className="text-sm text-muted-foreground mb-2">{userEmail}</p>
+            
+            {currentLocation && (
+              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-4">
+                <MapPin className="h-3 w-3" />
+                <span>
+                  {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
+                </span>
+              </div>
+            )}
+            
             <div className="bg-secondary/30 rounded-lg p-4">
               <p className="text-sm text-muted-foreground">Total de anúncios tocados</p>
               <p className="text-4xl font-bold text-primary">{totalPlays}</p>
