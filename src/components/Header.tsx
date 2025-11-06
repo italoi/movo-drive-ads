@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import movoLogo from "@/assets/movo-logo-corrected.png";
+import { Link } from "react-router-dom";
 
 export const Header = () => {
   const scrollToForm = () => {
@@ -32,6 +33,11 @@ export const Header = () => {
           >
             Quero Anunciar
           </Button>
+          <Link to="/auth">
+            <Button variant="outline" size="default">
+              Login
+            </Button>
+          </Link>
         </div>
       </div>
     </header>
