@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, MapPin, Trash2 } from "lucide-react";
+import { Loader2, Upload, MapPin, Trash2, Edit, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -21,7 +21,7 @@ type Campaign = {
   raio_km: number;
   tipos_servico_segmentados: string[];
   localizacao: { lat: number; lng: number };
-  audio_url: string | null;
+  audio_urls: string[];
   created_at: string;
 };
 
@@ -39,6 +39,7 @@ const Campanhas = () => {
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -48,7 +49,7 @@ const Campanhas = () => {
     raio_km: "",
     tipos_servico_segmentados: [] as string[],
     localizacao: { lat: -23.5505, lng: -46.6333 }, // São Paulo default
-    audio_url: "",
+    audio_urls: [] as string[],
   });
 
   const servicoOptions = ["X", "Comfort", "Black"];
@@ -173,13 +174,13 @@ const Campanhas = () => {
   };
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (!file.type.startsWith("audio/")) {
+    if (formData.audio_urls.length + files.length > 15) {
       toast({
-        title: "Arquivo inválido",
-        description: "Por favor, selecione um arquivo de áudio",
+        title: "Limite excedido",
+        description: "Você pode adicionar no máximo 15 áudios por campanha",
         variant: "destructive",
       });
       return;
@@ -187,25 +188,45 @@ const Campanhas = () => {
 
     setUploadingAudio(true);
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const uploadedUrls: string[] = [];
 
-      const { error: uploadError } = await supabase.storage
-        .from("audios")
-        .upload(filePath, file);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        if (!file.type.startsWith("audio/")) {
+          toast({
+            title: "Arquivo inválido",
+            description: `${file.name} não é um arquivo de áudio`,
+            variant: "destructive",
+          });
+          continue;
+        }
 
-      if (uploadError) throw uploadError;
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `${fileName}`;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("audios")
-        .getPublicUrl(filePath);
+        const { error: uploadError } = await supabase.storage
+          .from("audios")
+          .upload(filePath, file);
 
-      setFormData(prev => ({ ...prev, audio_url: publicUrl }));
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("audios")
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(publicUrl);
+      }
+
+      setFormData(prev => ({ 
+        ...prev, 
+        audio_urls: [...prev.audio_urls, ...uploadedUrls] 
+      }));
 
       toast({
-        title: "Áudio enviado",
-        description: "Arquivo de áudio carregado com sucesso",
+        title: "Áudios enviados",
+        description: `${uploadedUrls.length} arquivo(s) carregado(s) com sucesso`,
       });
     } catch (error: any) {
       toast({
@@ -216,6 +237,44 @@ const Campanhas = () => {
     } finally {
       setUploadingAudio(false);
     }
+  };
+
+  const handleRemoveAudio = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      audio_urls: prev.audio_urls.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleEditCampaign = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setFormData({
+      titulo: campaign.titulo,
+      cliente: campaign.cliente,
+      horario_inicio: campaign.horario_inicio,
+      horario_fim: campaign.horario_fim,
+      raio_km: campaign.raio_km.toString(),
+      tipos_servico_segmentados: campaign.tipos_servico_segmentados,
+      localizacao: campaign.localizacao,
+      audio_urls: campaign.audio_urls || [],
+    });
+    
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCampaign(null);
+    setFormData({
+      titulo: "",
+      cliente: "",
+      horario_inicio: "",
+      horario_fim: "",
+      raio_km: "",
+      tipos_servico_segmentados: [],
+      localizacao: { lat: -23.5505, lng: -46.6333 },
+      audio_urls: [],
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -234,41 +293,55 @@ const Campanhas = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("campaigns").insert({
-        titulo: formData.titulo,
-        cliente: formData.cliente,
-        horario_inicio: formData.horario_inicio,
-        horario_fim: formData.horario_fim,
-        raio_km: parseFloat(formData.raio_km),
-        tipos_servico_segmentados: formData.tipos_servico_segmentados,
-        localizacao: formData.localizacao,
-        audio_url: formData.audio_url || null,
-        created_by: user!.id,
-      });
+      if (editingCampaign) {
+        // Update existing campaign
+        const { error } = await supabase
+          .from("campaigns")
+          .update({
+            titulo: formData.titulo,
+            cliente: formData.cliente,
+            horario_inicio: formData.horario_inicio,
+            horario_fim: formData.horario_fim,
+            raio_km: parseFloat(formData.raio_km),
+            tipos_servico_segmentados: formData.tipos_servico_segmentados,
+            localizacao: formData.localizacao,
+            audio_urls: formData.audio_urls,
+          })
+          .eq("id", editingCampaign.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Campanha criada",
-        description: "A campanha foi criada com sucesso",
-      });
+        toast({
+          title: "Campanha atualizada",
+          description: "A campanha foi atualizada com sucesso",
+        });
+      } else {
+        // Insert new campaign
+        const { error } = await supabase.from("campaigns").insert({
+          titulo: formData.titulo,
+          cliente: formData.cliente,
+          horario_inicio: formData.horario_inicio,
+          horario_fim: formData.horario_fim,
+          raio_km: parseFloat(formData.raio_km),
+          tipos_servico_segmentados: formData.tipos_servico_segmentados,
+          localizacao: formData.localizacao,
+          audio_urls: formData.audio_urls,
+          created_by: user!.id,
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Campanha criada",
+          description: "A campanha foi criada com sucesso",
+        });
+      }
 
       fetchCampaigns();
-      
-      // Reset form
-      setFormData({
-        titulo: "",
-        cliente: "",
-        horario_inicio: "",
-        horario_fim: "",
-        raio_km: "",
-        tipos_servico_segmentados: [],
-        localizacao: { lat: -23.5505, lng: -46.6333 },
-        audio_url: "",
-      });
+      handleCancelEdit();
     } catch (error: any) {
       toast({
-        title: "Erro ao criar campanha",
+        title: editingCampaign ? "Erro ao atualizar campanha" : "Erro ao criar campanha",
         description: error.message,
         variant: "destructive",
       });
@@ -281,10 +354,19 @@ const Campanhas = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-foreground">Nova Campanha</h1>
-          <Button variant="outline" onClick={() => navigate("/dashboard")}>
-            Voltar
-          </Button>
+          <h1 className="text-2xl font-bold text-foreground">
+            {editingCampaign ? "Editar Campanha" : "Nova Campanha"}
+          </h1>
+          <div className="flex gap-2">
+            {editingCampaign && (
+              <Button variant="outline" onClick={handleCancelEdit}>
+                Cancelar Edição
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              Voltar
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -398,31 +480,51 @@ const Campanhas = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="audio">Áudio (opcional)</Label>
+            <Label htmlFor="audio">Áudios (opcional - até 15 arquivos)</Label>
             <div className="flex items-center gap-4">
               <Input
                 id="audio"
                 type="file"
                 accept="audio/*"
+                multiple
                 onChange={handleAudioUpload}
-                disabled={uploadingAudio}
+                disabled={uploadingAudio || formData.audio_urls.length >= 15}
                 className="flex-1"
               />
               {uploadingAudio && <Loader2 className="w-4 h-4 animate-spin" />}
-              {formData.audio_url && (
-                <span className="text-sm text-green-600">✓ Enviado</span>
-              )}
             </div>
+            {formData.audio_urls.length > 0 && (
+              <div className="space-y-2 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  {formData.audio_urls.length} áudio(s) adicionado(s)
+                </p>
+                <div className="space-y-2">
+                  {formData.audio_urls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2 bg-secondary/30 p-2 rounded">
+                      <span className="text-sm flex-1">Áudio {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveAudio(index)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Criando campanha...
+                {editingCampaign ? "Atualizando campanha..." : "Criando campanha..."}
               </>
             ) : (
-              "Criar Campanha"
+              editingCampaign ? "Atualizar Campanha" : "Criar Campanha"
             )}
           </Button>
         </form>
@@ -448,6 +550,7 @@ const Campanhas = () => {
                     <TableHead>Horário</TableHead>
                     <TableHead>Raio (km)</TableHead>
                     <TableHead>Serviços</TableHead>
+                    <TableHead>Áudios</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -461,14 +564,24 @@ const Campanhas = () => {
                       </TableCell>
                       <TableCell>{campaign.raio_km}</TableCell>
                       <TableCell>{campaign.tipos_servico_segmentados.join(", ")}</TableCell>
+                      <TableCell>{campaign.audio_urls?.length || 0}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteCampaign(campaign.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditCampaign(campaign)}
+                          >
+                            <Edit className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteCampaign(campaign.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

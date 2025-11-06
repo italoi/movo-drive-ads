@@ -48,7 +48,7 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          audio_url: string | null
+          audio_urls: string[] | null
           cliente: string
           created_at: string
           created_by: string
@@ -61,7 +61,7 @@ export type Database = {
           titulo: string
         }
         Insert: {
-          audio_url?: string | null
+          audio_urls?: string[] | null
           cliente: string
           created_at?: string
           created_by: string
@@ -74,7 +74,7 @@ export type Database = {
           titulo: string
         }
         Update: {
-          audio_url?: string | null
+          audio_urls?: string[] | null
           cliente?: string
           created_at?: string
           created_by?: string

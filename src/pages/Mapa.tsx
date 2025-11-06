@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Home, Lock, LogIn, Gauge, Megaphone, BarChart3, Car } from "lucide-react";
+import { Home, Lock, LogIn, Gauge, Megaphone, BarChart3, Car, User } from "lucide-react";
 
 const Mapa = () => {
   const pages = [
@@ -32,6 +32,13 @@ const Mapa = () => {
       path: "/motorista",
       description: "Painel do motorista com controle de corridas",
       icon: Gauge,
+      protected: true
+    },
+    {
+      name: "Perfil do Motorista",
+      path: "/perfil-motorista",
+      description: "Configuração do perfil do motorista",
+      icon: User,
       protected: true
     },
     {

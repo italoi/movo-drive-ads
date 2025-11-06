@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Pause, LogOut, Car, MapPin } from "lucide-react";
+import { Play, Pause, LogOut, Car, MapPin, UserCircle } from "lucide-react";
 import { Geolocation } from '@capacitor/geolocation';
 import movoLogo from "@/assets/movo-logo-corrected.png";
 import {
@@ -22,6 +22,7 @@ export default function MotoristaDashboard() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [currentCampaign, setCurrentCampaign] = useState<any>(null);
+  const [currentAudioIndex, setCurrentAudioIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRideActive, setIsRideActive] = useState(false);
   const [totalPlays, setTotalPlays] = useState(0);
@@ -222,12 +223,21 @@ export default function MotoristaDashboard() {
   const playSelectedCampaignAudio = async () => {
     const campaign = campaigns.find(c => c.id === selectedCampaignId);
     
-    if (!campaign || !campaign.audio_url) {
+    if (!campaign || !campaign.audio_urls || campaign.audio_urls.length === 0) {
       toast({
         title: "Erro",
-        description: "Campanha não possui áudio",
+        description: "Campanha não possui áudios",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Get current audio URL from the array
+    const audioUrl = campaign.audio_urls[currentAudioIndex];
+    
+    if (!audioUrl) {
+      // Reset to first audio if we're at the end
+      setCurrentAudioIndex(0);
       return;
     }
 
@@ -235,7 +245,7 @@ export default function MotoristaDashboard() {
     setIsPlaying(true);
 
     // Create audio element and play
-    const audio = new Audio(campaign.audio_url);
+    const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
     audio.onloadeddata = () => {
@@ -274,6 +284,12 @@ export default function MotoristaDashboard() {
     audio.onended = () => {
       console.log('Audio ended');
       setIsPlaying(false);
+      
+      // Move to next audio in the array
+      const campaign = campaigns.find(c => c.id === selectedCampaignId);
+      if (campaign && campaign.audio_urls) {
+        setCurrentAudioIndex((prevIndex) => (prevIndex + 1) % campaign.audio_urls.length);
+      }
     };
 
     audio.onerror = (error) => {
@@ -408,9 +424,14 @@ export default function MotoristaDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <img src={movoLogo} alt="Movo" className="h-12" />
-          <Button variant="ghost" size="icon" onClick={handleSignOut}>
-            <LogOut className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/perfil-motorista")}>
+              <UserCircle className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* User Info */}
