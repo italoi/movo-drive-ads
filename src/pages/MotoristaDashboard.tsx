@@ -28,7 +28,7 @@ export default function MotoristaDashboard() {
   const [totalPlays, setTotalPlays] = useState(0);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,8 +43,8 @@ export default function MotoristaDashboard() {
         audioRef.current.pause();
         audioRef.current = null;
       }
-      if (playIntervalRef.current) {
-        clearInterval(playIntervalRef.current);
+      if (playTimeoutRef.current) {
+        clearTimeout(playTimeoutRef.current);
       }
     };
   }, []);
@@ -185,18 +185,14 @@ export default function MotoristaDashboard() {
       }
 
       setIsRideActive(true);
+      setCurrentAudioIndex(0); // Reset to first audio
       toast({
         title: "Corrida iniciada!",
-        description: "Os anúncios serão tocados a cada 45 segundos...",
+        description: "Os anúncios serão tocados em sequência...",
       });
       
-      // Start playing the selected campaign audio immediately
+      // Start playing the first audio immediately
       playSelectedCampaignAudio();
-      
-      // Set up interval to play every 45 seconds
-      playIntervalRef.current = setInterval(() => {
-        playSelectedCampaignAudio();
-      }, 45000);
     } else {
       setIsRideActive(false);
       setIsPlaying(false);
@@ -207,10 +203,10 @@ export default function MotoristaDashboard() {
         audioRef.current = null;
       }
       
-      // Clear interval
-      if (playIntervalRef.current) {
-        clearInterval(playIntervalRef.current);
-        playIntervalRef.current = null;
+      // Clear timeout
+      if (playTimeoutRef.current) {
+        clearTimeout(playTimeoutRef.current);
+        playTimeoutRef.current = null;
       }
       
       toast({
@@ -285,10 +281,16 @@ export default function MotoristaDashboard() {
       console.log('Audio ended');
       setIsPlaying(false);
       
-      // Move to next audio in the array
+      // Move to next audio in the array and schedule next play
       const campaign = campaigns.find(c => c.id === selectedCampaignId);
-      if (campaign && campaign.audio_urls) {
-        setCurrentAudioIndex((prevIndex) => (prevIndex + 1) % campaign.audio_urls.length);
+      if (campaign && campaign.audio_urls && isRideActive) {
+        const nextIndex = (currentAudioIndex + 1) % campaign.audio_urls.length;
+        setCurrentAudioIndex(nextIndex);
+        
+        // Wait 45 seconds before playing next audio
+        playTimeoutRef.current = setTimeout(() => {
+          playSelectedCampaignAudio();
+        }, 45000);
       }
     };
 
