@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaigns: {
+        Row: {
+          audio_url: string | null
+          cliente: string
+          created_at: string
+          created_by: string
+          horario_fim: string
+          horario_inicio: string
+          id: string
+          localizacao: Json
+          raio_km: number
+          tipos_servico_segmentados: string[]
+          titulo: string
+        }
+        Insert: {
+          audio_url?: string | null
+          cliente: string
+          created_at?: string
+          created_by: string
+          horario_fim: string
+          horario_inicio: string
+          id?: string
+          localizacao: Json
+          raio_km: number
+          tipos_servico_segmentados: string[]
+          titulo: string
+        }
+        Update: {
+          audio_url?: string | null
+          cliente?: string
+          created_at?: string
+          created_by?: string
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          localizacao?: Json
+          raio_km?: number
+          tipos_servico_segmentados?: string[]
+          titulo?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null

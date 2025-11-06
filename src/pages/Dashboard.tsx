@@ -1,9 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,8 +79,8 @@ export default function Dashboard() {
                 'admin' podem acessar esta página.
               </p>
               <div className="flex gap-4">
-                <Button>Gerenciar Motoristas</Button>
-                <Button variant="outline">Gerenciar Campanhas</Button>
+                <Button onClick={() => navigate('/campanhas')}>Criar Nova Campanha</Button>
+                <Button variant="outline">Gerenciar Motoristas</Button>
               </div>
             </CardContent>
           </Card>
