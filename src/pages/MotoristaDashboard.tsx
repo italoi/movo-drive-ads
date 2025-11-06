@@ -192,7 +192,7 @@ export default function MotoristaDashboard() {
       });
       
       // Start playing the first audio immediately
-      playSelectedCampaignAudio();
+      playSelectedCampaignAudio(0);
     } else {
       setIsRideActive(false);
       setIsPlaying(false);
@@ -216,7 +216,7 @@ export default function MotoristaDashboard() {
     }
   };
 
-  const playSelectedCampaignAudio = async () => {
+  const playSelectedCampaignAudio = async (audioIndex: number) => {
     const campaign = campaigns.find(c => c.id === selectedCampaignId);
     
     if (!campaign || !campaign.audio_urls || campaign.audio_urls.length === 0) {
@@ -229,14 +229,14 @@ export default function MotoristaDashboard() {
     }
 
     // Get current audio URL from the array
-    const audioUrl = campaign.audio_urls[currentAudioIndex];
+    const audioUrl = campaign.audio_urls[audioIndex];
     
     if (!audioUrl) {
-      // Reset to first audio if we're at the end
-      setCurrentAudioIndex(0);
+      console.error('Audio URL not found at index:', audioIndex);
       return;
     }
 
+    console.log(`Playing audio ${audioIndex + 1} of ${campaign.audio_urls.length}`);
     setCurrentCampaign(campaign);
     setIsPlaying(true);
 
@@ -281,17 +281,21 @@ export default function MotoristaDashboard() {
       console.log('Audio ended');
       setIsPlaying(false);
       
-      // Move to next audio in the array and schedule next play
-      const campaign = campaigns.find(c => c.id === selectedCampaignId);
-      if (campaign && campaign.audio_urls && isRideActive) {
-        const nextIndex = (currentAudioIndex + 1) % campaign.audio_urls.length;
-        setCurrentAudioIndex(nextIndex);
-        
-        // Wait 45 seconds before playing next audio
-        playTimeoutRef.current = setTimeout(() => {
-          playSelectedCampaignAudio();
-        }, 45000);
+      if (!isRideActive) {
+        console.log('Ride is not active, stopping playback');
+        return;
       }
+      
+      // Calculate next index
+      const nextIndex = (audioIndex + 1) % campaign.audio_urls.length;
+      setCurrentAudioIndex(nextIndex);
+      
+      console.log(`Scheduling next audio (index ${nextIndex}) in 45 seconds`);
+      
+      // Wait 45 seconds before playing next audio
+      playTimeoutRef.current = setTimeout(() => {
+        playSelectedCampaignAudio(nextIndex);
+      }, 45000);
     };
 
     audio.onerror = (error) => {
