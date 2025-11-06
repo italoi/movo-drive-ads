@@ -13,6 +13,7 @@ import Campanhas from "./pages/Campanhas";
 import Relatorios from "./pages/Relatorios";
 import MotoristaLogin from "./pages/MotoristaLogin";
 import MotoristaDashboard from "./pages/MotoristaDashboard";
+import Mapa from "./pages/Mapa";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            <Route path="/mapa" element={<Mapa />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
