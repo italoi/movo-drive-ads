@@ -126,7 +126,7 @@ export default function MotoristaDashboard() {
     const { count } = await supabase
       .from("ad_play_logs")
       .select("*", { count: "exact", head: true })
-      .eq("driver_email", user.email);
+      .eq("driver_id", user.id);
 
     setTotalPlays(count || 0);
   };
