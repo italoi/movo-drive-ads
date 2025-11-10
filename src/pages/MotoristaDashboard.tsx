@@ -300,12 +300,21 @@ export default function MotoristaDashboard() {
       });
     };
 
-    audio.onplay = async () => {
-      console.log('Audio started playing, logging to database');
-      // Hide countdown while playing
+    audio.onplay = () => {
+      console.log('Audio started playing');
       setCountdown(null);
+    };
+
+    audio.onended = async () => {
+      console.log('Audio ended');
+      setIsPlaying(false);
       
-      // Log the play immediately when audio starts
+      if (!isRideActiveRef.current) {
+        console.log('Ride is not active, stopping playback');
+        return;
+      }
+      
+      // Log the completed ad play
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { error } = await supabase.from("ad_play_logs").insert({
@@ -316,19 +325,14 @@ export default function MotoristaDashboard() {
         if (error) {
           console.error('Error logging ad play:', error);
         } else {
-          console.log('Ad play logged successfully');
+          console.log('Ad play completed and logged successfully');
           getTotalPlays();
+          
+          toast({
+            title: "Anúncio concluído! ✓",
+            description: "Você ganhou crédito por este anúncio",
+          });
         }
-      }
-    };
-
-    audio.onended = () => {
-      console.log('Audio ended');
-      setIsPlaying(false);
-      
-      if (!isRideActiveRef.current) {
-        console.log('Ride is not active, stopping playback');
-        return;
       }
       
       // Calculate next index
