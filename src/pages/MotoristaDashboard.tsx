@@ -326,7 +326,7 @@ export default function MotoristaDashboard() {
       console.log('Audio ended');
       setIsPlaying(false);
       
-      if (!isRideActive) {
+      if (!isRideActiveRef.current) {
         console.log('Ride is not active, stopping playback');
         return;
       }
