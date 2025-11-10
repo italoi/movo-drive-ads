@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,10 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, MapPin, Trash2, Edit, X } from "lucide-react";
+import { Loader2, Trash2, Edit, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 
 type Campaign = {
   id: string;
@@ -20,7 +18,7 @@ type Campaign = {
   horario_fim: string;
   raio_km: number;
   tipos_servico_segmentados: string[];
-  localizacao: { lat: number; lng: number };
+  localizacao: string;
   audio_urls: string[];
   created_at: string;
 };
@@ -29,12 +27,7 @@ const Campanhas = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
 
-  const [mapboxToken, setMapboxToken] = useState("");
-  const [showTokenInput, setShowTokenInput] = useState(true);
   const [loading, setLoading] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -48,7 +41,7 @@ const Campanhas = () => {
     horario_fim: "",
     raio_km: "",
     tipos_servico_segmentados: [] as string[],
-    localizacao: { lat: -23.5505, lng: -46.6333 }, // São Paulo default
+    localizacao: "",
     audio_urls: [] as string[],
   });
 
@@ -69,7 +62,9 @@ const Campanhas = () => {
       
       const mappedCampaigns = (data || []).map(campaign => ({
         ...campaign,
-        localizacao: campaign.localizacao as { lat: number; lng: number }
+        localizacao: typeof campaign.localizacao === 'string' 
+          ? campaign.localizacao 
+          : JSON.stringify(campaign.localizacao)
       }));
       
       setCampaigns(mappedCampaigns);
@@ -110,59 +105,6 @@ const Campanhas = () => {
     }
   };
 
-  const initializeMap = (token: string) => {
-    if (!mapContainer.current || map.current) return;
-
-    mapboxgl.accessToken = token;
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [formData.localizacao.lng, formData.localizacao.lat],
-      zoom: 12,
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-    // Add initial marker
-    marker.current = new mapboxgl.Marker({ draggable: true })
-      .setLngLat([formData.localizacao.lng, formData.localizacao.lat])
-      .addTo(map.current);
-
-    // Update location on drag
-    marker.current.on("dragend", () => {
-      const lngLat = marker.current?.getLngLat();
-      if (lngLat) {
-        setFormData(prev => ({
-          ...prev,
-          localizacao: { lat: lngLat.lat, lng: lngLat.lng }
-        }));
-      }
-    });
-
-    // Add marker on click
-    map.current.on("click", (e) => {
-      const { lng, lat } = e.lngLat;
-      setFormData(prev => ({
-        ...prev,
-        localizacao: { lat, lng }
-      }));
-      marker.current?.setLngLat([lng, lat]);
-    });
-  };
-
-  const handleTokenSubmit = () => {
-    if (!mapboxToken.trim()) {
-      toast({
-        title: "Token necessário",
-        description: "Por favor, insira seu token do Mapbox",
-        variant: "destructive",
-      });
-      return;
-    }
-    setShowTokenInput(false);
-    initializeMap(mapboxToken);
-  };
 
   const handleServicoToggle = (servico: string) => {
     setFormData(prev => ({
@@ -272,7 +214,7 @@ const Campanhas = () => {
       horario_fim: "",
       raio_km: "",
       tipos_servico_segmentados: [],
-      localizacao: { lat: -23.5505, lng: -46.6333 },
+      localizacao: "",
       audio_urls: [],
     });
   };
@@ -281,11 +223,11 @@ const Campanhas = () => {
     e.preventDefault();
 
     if (!formData.titulo || !formData.cliente || !formData.horario_inicio || 
-        !formData.horario_fim || !formData.raio_km || 
+        !formData.horario_fim || !formData.raio_km || !formData.localizacao ||
         formData.tipos_servico_segmentados.length === 0) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos do formulário",
+        description: "Preencha todos os campos do formulário, incluindo o endereço",
         variant: "destructive",
       });
       return;
@@ -443,40 +385,17 @@ const Campanhas = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Localização</Label>
-            {showTokenInput ? (
-              <div className="border border-border rounded-lg p-6 bg-card">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Para usar o mapa, insira seu token do Mapbox. Obtenha em:{" "}
-                  <a 
-                    href="https://account.mapbox.com/access-tokens/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    mapbox.com/tokens
-                  </a>
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="pk.eyJ1..."
-                    value={mapboxToken}
-                    onChange={(e) => setMapboxToken(e.target.value)}
-                  />
-                  <Button type="button" onClick={handleTokenSubmit}>
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Ativar Mapa
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div ref={mapContainer} className="h-96 rounded-lg border border-border" />
-                <p className="text-sm text-muted-foreground mt-2">
-                  Lat: {formData.localizacao.lat.toFixed(6)}, Lng: {formData.localizacao.lng.toFixed(6)}
-                </p>
-              </>
-            )}
+            <Label htmlFor="endereco">Endereço Completo</Label>
+            <Input
+              id="endereco"
+              value={formData.localizacao}
+              onChange={(e) => setFormData(prev => ({ ...prev, localizacao: e.target.value }))}
+              placeholder="Ex: Rua das Flores, 123, Centro, São Paulo - SP"
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Digite o endereço completo com número, bairro e cidade
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -547,6 +466,7 @@ const Campanhas = () => {
                   <TableRow>
                     <TableHead>Título</TableHead>
                     <TableHead>Cliente</TableHead>
+                    <TableHead>Endereço</TableHead>
                     <TableHead>Horário</TableHead>
                     <TableHead>Raio (km)</TableHead>
                     <TableHead>Serviços</TableHead>
@@ -559,6 +479,9 @@ const Campanhas = () => {
                     <TableRow key={campaign.id}>
                       <TableCell className="font-medium">{campaign.titulo}</TableCell>
                       <TableCell>{campaign.cliente}</TableCell>
+                      <TableCell className="max-w-xs truncate" title={campaign.localizacao}>
+                        {campaign.localizacao}
+                      </TableCell>
                       <TableCell>
                         {campaign.horario_inicio} - {campaign.horario_fim}
                       </TableCell>
