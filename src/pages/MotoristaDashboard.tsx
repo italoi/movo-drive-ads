@@ -523,21 +523,68 @@ export default function MotoristaDashboard() {
             </Button>
 
             {isRideActive && (
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full"
-                onClick={handlePauseAd}
-                disabled={!isPlaying}
-              >
-                <Pause className="mr-2 h-5 w-5" />
-                Pausar Anúncio
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={handlePauseAd}
+                  disabled={!isPlaying}
+                >
+                  <Pause className="mr-2 h-5 w-5" />
+                  Pausar Anúncio
+                </Button>
+
+                {/* Lista de anúncios que serão tocados */}
+                {currentCampaign && currentCampaign.audio_urls && (
+                  <div className="bg-secondary/20 rounded-lg p-4 mt-4">
+                    <h4 className="text-sm font-semibold mb-3 text-center">
+                      Lista de Anúncios ({currentCampaign.audio_urls.length} total)
+                    </h4>
+                    <div className="space-y-2">
+                      {currentCampaign.audio_urls.map((audioUrl: string, index: number) => (
+                        <div
+                          key={index}
+                          className={`flex items-center gap-3 p-3 rounded-md transition-colors ${
+                            index === currentAudioIndex && isPlaying
+                              ? 'bg-primary/20 border-2 border-primary'
+                              : 'bg-background/50'
+                          }`}
+                        >
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                            index === currentAudioIndex && isPlaying
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {index === currentAudioIndex && isPlaying ? (
+                              <Play className="h-4 w-4" />
+                            ) : (
+                              <span className="text-sm font-semibold">{index + 1}</span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">
+                              Anúncio {index + 1}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {index === currentAudioIndex && isPlaying
+                                ? '🔊 Tocando agora'
+                                : index < currentAudioIndex
+                                ? '✓ Já tocado'
+                                : `Aguardando (${(index - currentAudioIndex) * 45}s)`}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <p className="text-sm text-muted-foreground">
               {isRideActive 
-                ? "O anúncio da campanha selecionada será tocado a cada 45 segundos"
+                ? "Os anúncios serão tocados em sequência com 45 segundos de intervalo"
                 : "Selecione uma campanha e inicie a corrida para começar a ganhar"}
             </p>
           </div>
