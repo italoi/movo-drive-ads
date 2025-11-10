@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 type AdPlayLog = {
   id: string;
   campaign_id: string;
-  driver_email: string;
+  driver_id: string;
   played_at: string;
   campaign_titulo: string;
+  driver_nome: string;
 };
 
 const Relatorios = () => {
@@ -31,9 +32,10 @@ const Relatorios = () => {
         .select(`
           id,
           campaign_id,
-          driver_email,
+          driver_id,
           played_at,
-          campaigns (titulo)
+          campaigns (titulo),
+          profiles (nome)
         `)
         .order("played_at", { ascending: false });
 
@@ -42,9 +44,10 @@ const Relatorios = () => {
       const formattedLogs = (data || []).map((log: any) => ({
         id: log.id,
         campaign_id: log.campaign_id,
-        driver_email: log.driver_email,
+        driver_id: log.driver_id,
         played_at: log.played_at,
         campaign_titulo: log.campaigns?.titulo || "Campanha não encontrada",
+        driver_nome: log.profiles?.nome || "Motorista não encontrado",
       }));
 
       setLogs(formattedLogs);
@@ -95,7 +98,7 @@ const Relatorios = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Título da Campanha</TableHead>
-                  <TableHead>Email do Motorista</TableHead>
+                  <TableHead>Nome do Motorista</TableHead>
                   <TableHead>Data/Hora da Reprodução</TableHead>
                 </TableRow>
               </TableHeader>
@@ -103,7 +106,7 @@ const Relatorios = () => {
                 {logs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-medium">{log.campaign_titulo}</TableCell>
-                    <TableCell>{log.driver_email}</TableCell>
+                    <TableCell>{log.driver_nome}</TableCell>
                     <TableCell>{formatDateTime(log.played_at)}</TableCell>
                   </TableRow>
                 ))}

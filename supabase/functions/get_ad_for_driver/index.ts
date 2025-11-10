@@ -13,29 +13,68 @@ serve(async (req) => {
   }
 
   try {
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Initialize Supabase client with the user's JWT
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
+
+    // Verify the user has motorista role
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: roleData } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'motorista')
+      .maybeSingle();
+
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: motorista role required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { latitude, longitude, tipo_servico } = await req.json();
 
     if (!latitude || !longitude || !tipo_servico) {
       throw new Error('Missing required parameters: latitude, longitude, tipo_servico');
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    // Use the authenticated client to fetch campaigns (respects RLS)
     // Get current time
     const now = new Date();
     const currentTime = now.toTimeString().slice(0, 5); // Format: HH:MM
 
-    // Fetch all campaigns
-    const { data: campaigns, error } = await supabase
+    // Fetch all campaigns using authenticated client (RLS applies)
+    const { data: campaigns, error } = await supabaseClient
       .from('campaigns')
       .select('*');
 
     if (error) {
-      console.error('Error fetching campaigns');
-      throw error;
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch campaigns' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Filter campaigns based on criteria
@@ -85,10 +124,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error occurred');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Internal server error' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

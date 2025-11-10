@@ -1,4 +1,4 @@
 project_id = "ylsftgmtoedmfitfubji"
 
 [functions.get_ad_for_driver]
-verify_jwt = false
+verify_jwt = true
