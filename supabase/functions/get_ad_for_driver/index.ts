@@ -15,8 +15,6 @@ serve(async (req) => {
   try {
     const { latitude, longitude, tipo_servico } = await req.json();
 
-    console.log('Received request:', { latitude, longitude, tipo_servico });
-
     if (!latitude || !longitude || !tipo_servico) {
       throw new Error('Missing required parameters: latitude, longitude, tipo_servico');
     }
@@ -29,8 +27,6 @@ serve(async (req) => {
     // Get current time
     const now = new Date();
     const currentTime = now.toTimeString().slice(0, 5); // Format: HH:MM
-    
-    console.log('Current time:', currentTime);
 
     // Fetch all campaigns
     const { data: campaigns, error } = await supabase
@@ -38,52 +34,31 @@ serve(async (req) => {
       .select('*');
 
     if (error) {
-      console.error('Error fetching campaigns:', error);
+      console.error('Error fetching campaigns');
       throw error;
     }
-
-    console.log(`Found ${campaigns?.length || 0} campaigns`);
 
     // Filter campaigns based on criteria
     const matchingCampaign = campaigns?.find((campaign) => {
       // Check if tipo_servico matches
       const tipoServicoMatch = campaign.tipos_servico_segmentados.includes(tipo_servico);
-      
-      if (!tipoServicoMatch) {
-        console.log(`Campaign ${campaign.id} - tipo_servico mismatch`);
-        return false;
-      }
+      if (!tipoServicoMatch) return false;
 
       // Check if current time is within campaign hours
       const startTime = campaign.horario_inicio;
       const endTime = campaign.horario_fim;
       const timeMatch = currentTime >= startTime && currentTime <= endTime;
-      
-      if (!timeMatch) {
-        console.log(`Campaign ${campaign.id} - time mismatch: ${currentTime} not between ${startTime} and ${endTime}`);
-        return false;
-      }
+      if (!timeMatch) return false;
 
       // Calculate distance using Haversine formula
       const campaignLat = campaign.localizacao.lat;
       const campaignLng = campaign.localizacao.lng;
       const distance = calculateDistance(latitude, longitude, campaignLat, campaignLng);
       
-      console.log(`Campaign ${campaign.id} - distance: ${distance.toFixed(2)} km, radius: ${campaign.raio_km} km`);
-      
-      const distanceMatch = distance <= campaign.raio_km;
-
-      if (!distanceMatch) {
-        console.log(`Campaign ${campaign.id} - distance mismatch`);
-        return false;
-      }
-
-      console.log(`Campaign ${campaign.id} - MATCHED!`);
-      return true;
+      return distance <= campaign.raio_km;
     });
 
     if (!matchingCampaign) {
-      console.log('No matching campaign found');
       return new Response(
         JSON.stringify({ 
           audio_url: null,
@@ -95,8 +70,6 @@ serve(async (req) => {
         }
       );
     }
-
-    console.log('Returning campaign:', matchingCampaign.id);
 
     return new Response(
       JSON.stringify({
@@ -112,7 +85,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in get_ad_for_driver:', error);
+    console.error('Error occurred');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
       JSON.stringify({ error: errorMessage }),

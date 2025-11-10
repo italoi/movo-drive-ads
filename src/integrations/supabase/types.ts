@@ -18,21 +18,21 @@ export type Database = {
         Row: {
           campaign_id: string
           created_at: string
-          driver_email: string
+          driver_id: string
           id: string
           played_at: string
         }
         Insert: {
           campaign_id: string
           created_at?: string
-          driver_email: string
+          driver_id: string
           id?: string
           played_at?: string
         }
         Update: {
           campaign_id?: string
           created_at?: string
-          driver_email?: string
+          driver_id?: string
           id?: string
           played_at?: string
         }
