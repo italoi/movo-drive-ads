@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import movoLogo from "@/assets/movo-logo-corrected.png";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().trim().email("Email inválido"),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
 
 export default function MotoristaLogin() {
   const [email, setEmail] = useState("");
@@ -16,6 +22,21 @@ export default function MotoristaLogin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate inputs
+    try {
+      loginSchema.parse({ email: email.trim(), password });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Erro de validação",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     setLoading(true);
 
     try {

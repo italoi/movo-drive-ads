@@ -310,7 +310,7 @@ export default function MotoristaDashboard() {
       if (user) {
         const { error } = await supabase.from("ad_play_logs").insert({
           campaign_id: campaign.id,
-          driver_email: user.email,
+          driver_id: user.id,
         });
         
         if (error) {
@@ -424,7 +424,7 @@ export default function MotoristaDashboard() {
       if (user) {
         const { error } = await supabase.from("ad_play_logs").insert({
           campaign_id: campaignData.campaign_id,
-          driver_email: user.email,
+          driver_id: user.id,
         });
         
         if (error) {
