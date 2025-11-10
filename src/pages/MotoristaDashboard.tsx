@@ -512,7 +512,7 @@ export default function MotoristaDashboard() {
             )}
             
             <div className="bg-secondary/30 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Total de anúncios tocados</p>
+              <p className="text-sm text-muted-foreground">Total de Créditos Ganhos</p>
               <p className="text-4xl font-bold text-primary">{totalPlays}</p>
             </div>
           </div>
