@@ -29,6 +29,34 @@ export default function MotoristaDashboard() {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRideActiveRef = useRef<boolean>(false);
+
+  const clearCountdown = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setCountdown(null);
+  };
+
+  const startCountdown = (seconds: number, onComplete: () => void) => {
+    clearCountdown();
+    setCountdown(seconds);
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          clearCountdown();
+          onComplete();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,6 +73,10 @@ export default function MotoristaDashboard() {
       }
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
+      }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
       }
     };
   }, []);
@@ -185,16 +217,26 @@ export default function MotoristaDashboard() {
       }
 
       setIsRideActive(true);
+      isRideActiveRef.current = true;
       setCurrentAudioIndex(0); // Reset to first audio
+
+      // Set current campaign for UI
+      const campaign = campaigns.find(c => c.id === selectedCampaignId);
+      if (campaign) setCurrentCampaign(campaign);
+
       toast({
         title: "Corrida iniciada!",
-        description: "Os anúncios serão tocados em sequência...",
+        description: "Primeiro anúncio em 15 segundos...",
       });
       
-      // Start playing the first audio immediately
-      playSelectedCampaignAudio(0);
+      // Start 15s countdown then play
+      startCountdown(15, () => {
+        if (!isRideActiveRef.current) return;
+        playSelectedCampaignAudio(0);
+      });
     } else {
       setIsRideActive(false);
+      isRideActiveRef.current = false;
       setIsPlaying(false);
       
       // Stop audio if playing
@@ -203,11 +245,12 @@ export default function MotoristaDashboard() {
         audioRef.current = null;
       }
       
-      // Clear timeout
+      // Clear any scheduled timeouts and countdowns
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
         playTimeoutRef.current = null;
       }
+      clearCountdown();
       
       toast({
         title: "Corrida finalizada",
@@ -259,6 +302,8 @@ export default function MotoristaDashboard() {
 
     audio.onplay = async () => {
       console.log('Audio started playing, logging to database');
+      // Hide countdown while playing
+      setCountdown(null);
       
       // Log the play immediately when audio starts
       const { data: { user } } = await supabase.auth.getUser();
@@ -292,10 +337,11 @@ export default function MotoristaDashboard() {
       
       console.log(`Scheduling next audio (index ${nextIndex}) in 45 seconds`);
       
-      // Wait 45 seconds before playing next audio
-      playTimeoutRef.current = setTimeout(() => {
+      // Start 45s countdown before next audio
+      startCountdown(45, () => {
+        if (!isRideActiveRef.current) return;
         playSelectedCampaignAudio(nextIndex);
-      }, 45000);
+      });
     };
 
     audio.onerror = (error) => {
@@ -313,6 +359,7 @@ export default function MotoristaDashboard() {
     if (isPlaying && audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      // Resume countdown with 45s after pause? For now, keep paused state without countdown
       toast({
         title: "Anúncio pausado",
         description: "O anúncio foi pausado temporariamente",
@@ -522,6 +569,13 @@ export default function MotoristaDashboard() {
               )}
             </Button>
 
+            {isRideActive && !isPlaying && countdown !== null && (
+              <div className="bg-secondary/30 rounded-lg p-4 text-center">
+                <p className="text-sm text-muted-foreground">Próximo anúncio em</p>
+                <p className="text-3xl font-bold text-primary">{countdown}s</p>
+              </div>
+            )}
+
             {isRideActive && (
               <>
                 <Button
@@ -567,8 +621,10 @@ export default function MotoristaDashboard() {
                               Anúncio {index + 1}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {index === currentAudioIndex && isPlaying
-                                ? '🔊 Tocando agora'
+                              {index === currentAudioIndex
+                                ? (isPlaying
+                                    ? '🔊 Tocando agora'
+                                    : `Aguardando (${countdown ?? 0}s)`)
                                 : index < currentAudioIndex
                                 ? '✓ Já tocado'
                                 : `Aguardando (${(index - currentAudioIndex) * 45}s)`}
