@@ -5,7 +5,7 @@ export const ConceptSection = () => {
   const concepts = [
     {
       icon: Radio,
-      title: "GPS Ativo",
+      title: "Foco na Jornada",
       description: "O motorista dirige normalmente.",
     },
     {
