@@ -5,7 +5,7 @@ export const AdvertiserBenefits = () => {
     {
       icon: Target,
       title: "Hiper-Segmentação",
-      description: "Mostre seu anúncio por localização, raio (ex: 2km do seu restaurante), horário ou tipo de corrida (X, Comfort, Black).",
+      description: "Mostre seu anúncio também por localização, raio (ex: 2km do seu restaurante), horário ou tipo de corrida (X, Comfort, Black).",
     },
     {
       icon: Megaphone,

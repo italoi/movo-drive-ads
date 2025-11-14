@@ -42,7 +42,7 @@ export const LeadForm = () => {
             Faça parte da revolução da mídia em mobilidade
           </h2>
           <p className="text-xl text-muted-foreground">
-            Deixe seu contato e seja o primeiro a saber do nosso lançamento.
+            Fique por dentro! Deixe seu contato.
           </p>
         </div>
 
