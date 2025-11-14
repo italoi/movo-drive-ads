@@ -6,7 +6,7 @@ export const ConceptSection = () => {
     {
       icon: Radio,
       title: "GPS Ativo",
-      description: "O motorista dirige normalmente com o app Movo ativo.",
+      description: "O motorista dirige normalmente.",
     },
     {
       icon: MapPin,
@@ -28,7 +28,7 @@ export const ConceptSection = () => {
             Publicidade que se move com a cidade
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            O Movo usa o GPS do seu celular para tocar o anúncio certo, no lugar certo.
+            A Movo usa um sistema inteligente para o anúncio certo na hora e lugar certos.
           </p>
         </div>
 
@@ -52,7 +52,7 @@ export const ConceptSection = () => {
         <div className="max-w-3xl mx-auto">
           <Card className="p-8 border-2 border-accent/20 bg-accent/5">
             <p className="text-lg leading-relaxed">
-              <strong className="font-bold">Atenção:</strong> O Movo <strong>NÃO</strong> é uma rádio. Ele não toca música e não interrompe sua navegação. Ele apenas reproduz anúncios de áudio curtos (10-15 segundos) em locais específicos.
+              <strong className="font-bold">Atenção:</strong> A Movo <strong>NÃO</strong> é uma rádio. Não toca música e não interrompe a navegação. Apenas reproduz anúncios de áudio bem curtos (5 segundos) em locais específicos ou genéricos.
             </p>
           </Card>
         </div>

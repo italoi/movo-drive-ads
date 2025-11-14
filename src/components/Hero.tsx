@@ -19,9 +19,14 @@ export const Hero = () => {
       <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center relative z-10">
         {/* Left Column - Text Content */}
         <div className="space-y-6 text-left">
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
-            Uma nova fonte de renda para motoristas de aplicativos
-          </h1>
+          <div className="space-y-4">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
+              Uma nova fonte de renda para motoristas de aplicativos
+            </h1>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight text-accent">
+              Uma nova mídia no ar. Direto no target.
+            </h2>
+          </div>
           
           <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed">
             O Movo transforma o tempo ocioso das corridas em ganhos. Nosso sistema inteligente reproduz anúncios curtos em áudio para o passageiro, baseados 100% na localização do veículo.

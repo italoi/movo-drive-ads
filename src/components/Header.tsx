@@ -46,7 +46,7 @@ export const Header = () => {
           <img 
             src={movoLogo} 
             alt="Movo Logo" 
-            className="h-10 w-auto object-contain"
+            className="h-[54px] w-auto object-contain"
           />
         </div>
         
