@@ -55,8 +55,9 @@ export type Database = {
           horario_fim: string
           horario_inicio: string
           id: string
-          localizacao: Json
-          raio_km: number
+          localizacao: Json | null
+          raio_km: number | null
+          tipo_campanha: Database["public"]["Enums"]["campaign_type"]
           tipos_servico_segmentados: string[]
           titulo: string
         }
@@ -68,8 +69,9 @@ export type Database = {
           horario_fim: string
           horario_inicio: string
           id?: string
-          localizacao: Json
-          raio_km: number
+          localizacao?: Json | null
+          raio_km?: number | null
+          tipo_campanha?: Database["public"]["Enums"]["campaign_type"]
           tipos_servico_segmentados: string[]
           titulo: string
         }
@@ -81,8 +83,9 @@ export type Database = {
           horario_fim?: string
           horario_inicio?: string
           id?: string
-          localizacao?: Json
-          raio_km?: number
+          localizacao?: Json | null
+          raio_km?: number | null
+          tipo_campanha?: Database["public"]["Enums"]["campaign_type"]
           tipos_servico_segmentados?: string[]
           titulo?: string
         }
@@ -151,6 +154,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user" | "motorista"
+      campaign_type: "generica" | "georreferenciada"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -279,6 +283,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user", "motorista"],
+      campaign_type: ["generica", "georreferenciada"],
     },
   },
 } as const
