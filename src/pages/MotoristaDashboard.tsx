@@ -155,15 +155,16 @@ export default function MotoristaDashboard() {
     }
   };
 
-  const getAdForDriver = async (location: { lat: number; lng: number }) => {
+  const getAdForDriver = async (location: { lat: number; lng: number }, isStartOfRide: boolean = false) => {
     try {
-      console.log('Calling get_ad_for_driver with:', { location, tipoServico });
+      console.log('Calling get_ad_for_driver with:', { location, tipoServico, isStartOfRide });
       
       const { data, error } = await supabase.functions.invoke('get_ad_for_driver', {
         body: {
           latitude: location.lat,
           longitude: location.lng,
           tipo_servico: tipoServico,
+          is_start_of_ride: isStartOfRide,
         },
       });
 
@@ -174,7 +175,7 @@ export default function MotoristaDashboard() {
 
       console.log('Response from get_ad_for_driver:', data);
 
-      if (!data.audio_url) {
+      if (!data.audio_urls || data.audio_urls.length === 0) {
         toast({
           title: "Sem campanhas",
           description: data.message || "Nenhuma campanha disponível para sua localização",
@@ -229,10 +230,16 @@ export default function MotoristaDashboard() {
         description: "Primeiro anúncio em 15 segundos...",
       });
       
-      // Start 15s countdown then play
+      // Start 15s countdown then play first ad (marking as start of ride)
       startCountdown(15, () => {
         if (!isRideActiveRef.current) return;
-        playSelectedCampaignAudio(0);
+        
+        // For the first ad, pass is_start_of_ride flag
+        getCurrentLocation().then(location => {
+          if (location && isRideActiveRef.current) {
+            handlePlayAd(location, true); // true = is start of ride
+          }
+        });
       });
     } else {
       setIsRideActive(false);
@@ -371,7 +378,7 @@ export default function MotoristaDashboard() {
     }
   };
 
-  const handlePlayAd = async (location?: { lat: number; lng: number }) => {
+  const handlePlayAd = async (location?: { lat: number; lng: number }, isStartOfRide: boolean = false) => {
     if (!isRideActive) {
       toast({
         title: "Inicie uma corrida primeiro",
@@ -389,10 +396,10 @@ export default function MotoristaDashboard() {
       return;
     }
 
-    // Get ad based on location and tipo_servico
-    const campaignData = await getAdForDriver(locationToUse);
+    // Get ad based on location and tipo_servico (pass isStartOfRide flag)
+    const campaignData = await getAdForDriver(locationToUse, isStartOfRide);
     
-    if (!campaignData || !campaignData.audio_url) {
+    if (!campaignData || !campaignData.audio_urls || campaignData.audio_urls.length === 0) {
       // Wait and try again if ride is still active
       if (isRideActive) {
         setTimeout(() => handlePlayAd(), 5000);
@@ -403,8 +410,11 @@ export default function MotoristaDashboard() {
     setCurrentCampaign(campaignData);
     setIsPlaying(true);
 
+    // Get first audio URL from the array
+    const audioUrl = campaignData.audio_urls[0];
+
     // Create audio element and play
-    const audio = new Audio(campaignData.audio_url);
+    const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
     audio.onloadeddata = () => {

@@ -54,11 +54,13 @@ serve(async (req) => {
       );
     }
 
-    const { latitude, longitude, tipo_servico } = await req.json();
+    const { latitude, longitude, tipo_servico, is_start_of_ride } = await req.json();
 
     if (!latitude || !longitude || !tipo_servico) {
       throw new Error('Missing required parameters: latitude, longitude, tipo_servico');
     }
+
+    console.log('[get_ad_for_driver] Request params:', { latitude, longitude, tipo_servico, is_start_of_ride });
 
     // Use the authenticated client to fetch campaigns (respects RLS)
     // Get current time
@@ -71,33 +73,74 @@ serve(async (req) => {
       .select('*');
 
     if (error) {
+      console.error('[get_ad_for_driver] Error fetching campaigns:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch campaigns' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Filter campaigns based on criteria
-    const matchingCampaign = campaigns?.find((campaign) => {
-      // Check if tipo_servico matches
-      const tipoServicoMatch = campaign.tipos_servico_segmentados.includes(tipo_servico);
-      if (!tipoServicoMatch) return false;
+    console.log(`[get_ad_for_driver] Found ${campaigns?.length || 0} total campaigns`);
 
-      // Check if current time is within campaign hours
-      const startTime = campaign.horario_inicio;
-      const endTime = campaign.horario_fim;
-      const timeMatch = currentTime >= startTime && currentTime <= endTime;
-      if (!timeMatch) return false;
+    let matchingCampaign = null;
 
-      // Calculate distance using Haversine formula
-      const campaignLat = campaign.localizacao.lat;
-      const campaignLng = campaign.localizacao.lng;
-      const distance = calculateDistance(latitude, longitude, campaignLat, campaignLng);
-      
-      return distance <= campaign.raio_km;
-    });
+    // PRIORITY 1: If it's the start of ride, look for a generic campaign
+    if (is_start_of_ride) {
+      console.log('[get_ad_for_driver] Looking for generic campaign (start of ride)');
+      matchingCampaign = campaigns?.find((campaign) => {
+        if (campaign.tipo_campanha !== 'generica') return false;
+        
+        // Check if tipo_servico matches
+        const tipoServicoMatch = campaign.tipos_servico_segmentados.includes(tipo_servico);
+        if (!tipoServicoMatch) return false;
+
+        // Check if current time is within campaign hours
+        const startTime = campaign.horario_inicio;
+        const endTime = campaign.horario_fim;
+        const timeMatch = currentTime >= startTime && currentTime <= endTime;
+        
+        return timeMatch;
+      });
+
+      if (matchingCampaign) {
+        console.log('[get_ad_for_driver] Found generic campaign:', matchingCampaign.titulo);
+      }
+    }
+
+    // PRIORITY 2: If no generic campaign found or not start of ride, look for georeferenced campaigns
+    if (!matchingCampaign) {
+      console.log('[get_ad_for_driver] Looking for georeferenced campaign');
+      matchingCampaign = campaigns?.find((campaign) => {
+        if (campaign.tipo_campanha !== 'georreferenciada') return false;
+        if (!campaign.localizacao || !campaign.raio_km) return false;
+
+        // Check if tipo_servico matches
+        const tipoServicoMatch = campaign.tipos_servico_segmentados.includes(tipo_servico);
+        if (!tipoServicoMatch) return false;
+
+        // Check if current time is within campaign hours
+        const startTime = campaign.horario_inicio;
+        const endTime = campaign.horario_fim;
+        const timeMatch = currentTime >= startTime && currentTime <= endTime;
+        if (!timeMatch) return false;
+
+        // Calculate distance using Haversine formula
+        const campaignLat = campaign.localizacao.lat;
+        const campaignLng = campaign.localizacao.lng;
+        const distance = calculateDistance(latitude, longitude, campaignLat, campaignLng);
+        
+        console.log(`[get_ad_for_driver] Campaign ${campaign.titulo}: distance=${distance.toFixed(2)}km, raio=${campaign.raio_km}km`);
+        
+        return distance <= campaign.raio_km;
+      });
+
+      if (matchingCampaign) {
+        console.log('[get_ad_for_driver] Found georeferenced campaign:', matchingCampaign.titulo);
+      }
+    }
 
     if (!matchingCampaign) {
+      console.log('[get_ad_for_driver] No matching campaign found');
       return new Response(
         JSON.stringify({ 
           audio_url: null,
@@ -110,12 +153,19 @@ serve(async (req) => {
       );
     }
 
+    console.log('[get_ad_for_driver] Returning campaign:', {
+      id: matchingCampaign.id,
+      titulo: matchingCampaign.titulo,
+      tipo: matchingCampaign.tipo_campanha
+    });
+
     return new Response(
       JSON.stringify({
         campaign_id: matchingCampaign.id,
-        audio_url: matchingCampaign.audio_url,
+        audio_urls: matchingCampaign.audio_urls,
         titulo: matchingCampaign.titulo,
         cliente: matchingCampaign.cliente,
+        tipo_campanha: matchingCampaign.tipo_campanha,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
