@@ -139,6 +139,31 @@ serve(async (req) => {
       }
     }
 
+    // PRIORITY 3: For demo - if start of ride and no match, find any campaign respecting time and service type
+    if (!matchingCampaign && is_start_of_ride) {
+      console.log('[get_ad_for_driver] Demo fallback: looking for any campaign (ignoring distance)');
+      matchingCampaign = campaigns?.find((campaign) => {
+        const tipoServicoMatch = campaign.tipos_servico_segmentados.includes(tipo_servico);
+        if (!tipoServicoMatch) return false;
+
+        const startTime = campaign.horario_inicio;
+        const endTime = campaign.horario_fim;
+        const timeMatch = currentTime >= startTime && currentTime <= endTime;
+        
+        return timeMatch;
+      });
+
+      if (matchingCampaign) {
+        console.log('[get_ad_for_driver] Found campaign with relaxed filters:', matchingCampaign.titulo);
+      }
+    }
+
+    // PRIORITY 4: Ultimate fallback for demo - return first available campaign
+    if (!matchingCampaign && is_start_of_ride && campaigns && campaigns.length > 0) {
+      console.log('[get_ad_for_driver] Ultimate demo fallback: returning first campaign');
+      matchingCampaign = campaigns[0];
+    }
+
     if (!matchingCampaign) {
       console.log('[get_ad_for_driver] No matching campaign found');
       return new Response(
