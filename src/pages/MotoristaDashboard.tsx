@@ -157,7 +157,13 @@ export default function MotoristaDashboard() {
 
   const getAdForDriver = async (location: { lat: number; lng: number }, isStartOfRide: boolean = false) => {
     try {
-      console.log('Calling get_ad_for_driver with:', { location, tipoServico, isStartOfRide });
+      console.log('========================================');
+      console.log('[getAdForDriver] Calling edge function with:');
+      console.log('  - Location:', location);
+      console.log('  - Tipo Servico:', tipoServico);
+      console.log('  - Is Start of Ride:', isStartOfRide);
+      console.log('  - Current Time:', new Date().toLocaleTimeString('pt-BR'));
+      console.log('========================================');
       
       const { data, error } = await supabase.functions.invoke('get_ad_for_driver', {
         body: {
@@ -169,11 +175,14 @@ export default function MotoristaDashboard() {
       });
 
       if (error) {
-        console.error('Error calling get_ad_for_driver:', error);
+        console.error('[getAdForDriver] ❌ Edge function error:', error);
         throw error;
       }
 
-      console.log('Response from get_ad_for_driver:', data);
+      console.log('[getAdForDriver] ✅ Response received:', data);
+      console.log('  - Campaign:', data?.titulo || 'None');
+      console.log('  - Type:', data?.tipo_campanha || 'N/A');
+      console.log('  - Audio URLs:', data?.audio_urls?.length || 0);
 
       if (!data.audio_urls || data.audio_urls.length === 0) {
         toast({
@@ -197,15 +206,8 @@ export default function MotoristaDashboard() {
 
   const handleStartRide = async () => {
     if (!isRideActive) {
-      if (!selectedCampaignId) {
-        toast({
-          title: "Selecione uma campanha",
-          description: "Escolha uma campanha antes de iniciar a corrida",
-          variant: "destructive",
-        });
-        return;
-      }
-
+      console.log('[handleStartRide] 🚗 Starting new ride...');
+      
       const location = await getCurrentLocation();
       
       if (!tipoServico) {
@@ -219,24 +221,23 @@ export default function MotoristaDashboard() {
 
       setIsRideActive(true);
       isRideActiveRef.current = true;
-      setCurrentAudioIndex(0); // Reset to first audio
-
-      // Set current campaign for UI
-      const campaign = campaigns.find(c => c.id === selectedCampaignId);
-      if (campaign) setCurrentCampaign(campaign);
+      setCurrentAudioIndex(0);
+      console.log('[handleStartRide] ✅ Ride activated');
 
       toast({
         title: "Corrida iniciada!",
-        description: "Primeiro anúncio em 15 segundos...",
+        description: "Sistema buscando melhor campanha para você... Primeiro anúncio em 15 segundos!",
       });
       
       // Start 15s countdown then play first ad (marking as start of ride)
       startCountdown(15, () => {
         if (!isRideActiveRef.current) return;
+        console.log('[handleStartRide] ⏰ 15s countdown finished, fetching first ad...');
         
         // For the first ad, pass is_start_of_ride flag
         getCurrentLocation().then(location => {
           if (location && isRideActiveRef.current) {
+            console.log('[handleStartRide] 📍 Location obtained, calling handlePlayAd with is_start_of_ride=true');
             handlePlayAd(location, true); // true = is start of ride
           }
         });
@@ -379,7 +380,10 @@ export default function MotoristaDashboard() {
   };
 
   const handlePlayAd = async (location?: { lat: number; lng: number }, isStartOfRide: boolean = false) => {
+    console.log('[handlePlayAd] 🎵 Attempting to play ad...', { isStartOfRide, isRideActive });
+    
     if (!isRideActive) {
+      console.log('[handlePlayAd] ❌ Ride not active, aborting');
       toast({
         title: "Inicie uma corrida primeiro",
         description: "Você precisa iniciar uma corrida para tocar anúncios",
@@ -389,6 +393,7 @@ export default function MotoristaDashboard() {
 
     const locationToUse = location || currentLocation;
     if (!locationToUse) {
+      console.log('[handlePlayAd] ❌ No location available');
       toast({
         title: "Localização não disponível",
         description: "Aguarde enquanto obtemos sua localização",
@@ -400,15 +405,27 @@ export default function MotoristaDashboard() {
     const campaignData = await getAdForDriver(locationToUse, isStartOfRide);
     
     if (!campaignData || !campaignData.audio_urls || campaignData.audio_urls.length === 0) {
+      console.log('[handlePlayAd] ⚠️ No campaign found, will retry in 5s');
+      toast({
+        title: "Aguardando campanha",
+        description: "Buscando próxima campanha disponível...",
+      });
+      
       // Wait and try again if ride is still active
-      if (isRideActive) {
+      if (isRideActive && isRideActiveRef.current) {
         setTimeout(() => handlePlayAd(), 5000);
       }
       return;
     }
 
+    console.log('[handlePlayAd] ✅ Campaign found:', campaignData.titulo);
     setCurrentCampaign(campaignData);
     setIsPlaying(true);
+    
+    toast({
+      title: `Tocando: ${campaignData.titulo}`,
+      description: `Campanha ${campaignData.tipo_campanha || 'automática'} - ${campaignData.cliente}`,
+    });
 
     // Get first audio URL from the array
     const audioUrl = campaignData.audio_urls[0];
@@ -450,17 +467,43 @@ export default function MotoristaDashboard() {
       }
     };
 
-    audio.onended = () => {
-      console.log('Audio ended');
+    audio.onended = async () => {
+      console.log('[handlePlayAd] 🎵 Audio ended, logging completion...');
       setIsPlaying(false);
-      toast({
-        title: "Anúncio tocado!",
-        description: "Você ganhou crédito por este anúncio",
-      });
       
-      // Auto-play next ad if ride is still active
-      if (isRideActive) {
-        setTimeout(() => handlePlayAd(), 3000);
+      // Log the completed ad play
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.from("ad_play_logs").insert({
+          campaign_id: campaignData.campaign_id,
+          driver_id: user.id,
+        });
+        
+        if (error) {
+          console.error('[handlePlayAd] ❌ Error logging ad play:', error);
+        } else {
+          console.log('[handlePlayAd] ✅ Ad play logged successfully');
+          getTotalPlays();
+          
+          toast({
+            title: "Anúncio concluído! ✓",
+            description: "Você ganhou crédito por este anúncio",
+          });
+        }
+      }
+      
+      // Start 45s countdown before next ad
+      if (isRideActive && isRideActiveRef.current) {
+        console.log('[handlePlayAd] ⏰ Starting 45s countdown for next ad...');
+        startCountdown(45, () => {
+          if (!isRideActiveRef.current) return;
+          console.log('[handlePlayAd] ⏰ 45s countdown finished, fetching next ad...');
+          getCurrentLocation().then(loc => {
+            if (loc && isRideActiveRef.current) {
+              handlePlayAd(loc, false); // subsequent ads are not start of ride
+            }
+          });
+        });
       }
     };
 
@@ -528,22 +571,34 @@ export default function MotoristaDashboard() {
           </div>
         </Card>
 
-        {/* Campaign Selection */}
+        {/* Campaign Info */}
         <Card className="p-6 mb-4">
           <div className="space-y-4">
-            <label className="text-sm font-medium">Campanhas próximas de você</label>
-            <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId} disabled={isRideActive}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma campanha" />
-              </SelectTrigger>
-              <SelectContent>
-                {campaigns.map((campaign) => (
-                  <SelectItem key={campaign.id} value={campaign.id}>
-                    {campaign.titulo} - {campaign.cliente}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Campanhas Disponíveis</label>
+              <span className="text-xs text-muted-foreground">
+                {campaigns.length} {campaigns.length === 1 ? 'campanha' : 'campanhas'}
+              </span>
+            </div>
+            
+            {currentCampaign && isRideActive ? (
+              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                <p className="text-xs text-muted-foreground mb-1">Campanha Atual:</p>
+                <p className="font-semibold text-primary">{currentCampaign.titulo}</p>
+                <p className="text-sm text-muted-foreground">{currentCampaign.cliente}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tipo: <span className="font-medium">{currentCampaign.tipo_campanha || 'automático'}</span>
+                </p>
+              </div>
+            ) : (
+              <div className="bg-secondary/20 rounded-lg p-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {campaigns.length > 0 
+                    ? "Inicie a corrida e o sistema selecionará a melhor campanha automaticamente"
+                    : "Nenhuma campanha disponível no momento"}
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -654,8 +709,8 @@ export default function MotoristaDashboard() {
 
             <p className="text-sm text-muted-foreground">
               {isRideActive 
-                ? "Os anúncios serão tocados em sequência com 45 segundos de intervalo"
-                : "Selecione uma campanha e inicie a corrida para começar a ganhar"}
+                ? "Os anúncios serão selecionados automaticamente baseados em sua localização e tipo de serviço"
+                : "Inicie a corrida e o sistema buscará as melhores campanhas para você"}
             </p>
           </div>
         </Card>
