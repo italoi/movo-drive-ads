@@ -16,11 +16,12 @@ type Campaign = {
   cliente: string;
   horario_inicio: string;
   horario_fim: string;
-  raio_km: number;
+  raio_km: number | null;
   tipos_servico_segmentados: string[];
-  localizacao: string;
+  localizacao: string | null;
   audio_urls: string[];
   created_at: string;
+  tipo_campanha: 'generica' | 'georreferenciada';
 };
 
 const Campanhas = () => {
@@ -43,6 +44,7 @@ const Campanhas = () => {
     tipos_servico_segmentados: [] as string[],
     localizacao: "",
     audio_urls: [] as string[],
+    tipo_campanha: "georreferenciada" as "generica" | "georreferenciada",
   });
 
   const servicoOptions = ["X", "Comfort", "Black"];
@@ -195,10 +197,11 @@ const Campanhas = () => {
       cliente: campaign.cliente,
       horario_inicio: campaign.horario_inicio,
       horario_fim: campaign.horario_fim,
-      raio_km: campaign.raio_km.toString(),
+      raio_km: campaign.raio_km?.toString() || "",
       tipos_servico_segmentados: campaign.tipos_servico_segmentados,
-      localizacao: campaign.localizacao,
+      localizacao: campaign.localizacao || "",
       audio_urls: campaign.audio_urls || [],
+      tipo_campanha: campaign.tipo_campanha,
     });
     
     // Scroll to form
@@ -216,18 +219,29 @@ const Campanhas = () => {
       tipos_servico_segmentados: [],
       localizacao: "",
       audio_urls: [],
+      tipo_campanha: "georreferenciada",
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validação diferente para cada tipo de campanha
     if (!formData.titulo || !formData.cliente || !formData.horario_inicio || 
-        !formData.horario_fim || !formData.raio_km || !formData.localizacao ||
-        formData.tipos_servico_segmentados.length === 0) {
+        !formData.horario_fim || formData.tipos_servico_segmentados.length === 0) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos do formulário, incluindo o endereço",
+        description: "Por favor, preencha todos os campos obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validação específica para campanhas georreferenciadas
+    if (formData.tipo_campanha === 'georreferenciada' && (!formData.localizacao || !formData.raio_km)) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Campanhas georreferenciadas precisam de endereço e raio",
         variant: "destructive",
       });
       return;
@@ -235,19 +249,24 @@ const Campanhas = () => {
 
     setLoading(true);
     try {
+      const campaignData = {
+        titulo: formData.titulo,
+        cliente: formData.cliente,
+        horario_inicio: formData.horario_inicio,
+        horario_fim: formData.horario_fim,
+        raio_km: formData.tipo_campanha === 'georreferenciada' ? parseFloat(formData.raio_km) : null,
+        tipos_servico_segmentados: formData.tipos_servico_segmentados,
+        localizacao: formData.tipo_campanha === 'georreferenciada' ? formData.localizacao : null,
+        audio_urls: formData.audio_urls,
+        tipo_campanha: formData.tipo_campanha,
+      };
+
       if (editingCampaign) {
         // Update existing campaign
         const { error } = await supabase
           .from("campaigns")
           .update({
-            titulo: formData.titulo,
-            cliente: formData.cliente,
-            horario_inicio: formData.horario_inicio,
-            horario_fim: formData.horario_fim,
-            raio_km: parseFloat(formData.raio_km),
-            tipos_servico_segmentados: formData.tipos_servico_segmentados,
-            localizacao: formData.localizacao,
-            audio_urls: formData.audio_urls,
+            ...campaignData,
           })
           .eq("id", editingCampaign.id);
 
@@ -260,15 +279,8 @@ const Campanhas = () => {
       } else {
         // Insert new campaign
         const { error } = await supabase.from("campaigns").insert({
-          titulo: formData.titulo,
-          cliente: formData.cliente,
-          horario_inicio: formData.horario_inicio,
-          horario_fim: formData.horario_fim,
-          raio_km: parseFloat(formData.raio_km),
-          tipos_servico_segmentados: formData.tipos_servico_segmentados,
-          localizacao: formData.localizacao,
-          audio_urls: formData.audio_urls,
-          created_by: user!.id,
+          ...campaignData,
+          created_by: user?.id,
         });
 
         if (error) throw error;
@@ -354,19 +366,59 @@ const Campanhas = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, horario_fim: e.target.value }))}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="raio_km">Raio (km)</Label>
-              <Input
-                id="raio_km"
-                type="number"
-                step="0.1"
-                value={formData.raio_km}
-                onChange={(e) => setFormData(prev => ({ ...prev, raio_km: e.target.value }))}
-                placeholder="5.0"
-              />
-            </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tipo_campanha">Tipo de Campanha</Label>
+            <select
+              id="tipo_campanha"
+              value={formData.tipo_campanha}
+              onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                tipo_campanha: e.target.value as 'generica' | 'georreferenciada'
+              }))}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <option value="generica">Genérica (Nacional - sem localização)</option>
+              <option value="georreferenciada">Georreferenciada (Local - com localização)</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Campanhas genéricas tocam no início de todas as corridas. Campanhas georreferenciadas tocam quando o motorista está próximo da localização.
+            </p>
+          </div>
+
+          {formData.tipo_campanha === 'georreferenciada' && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="endereco">Endereço Completo</Label>
+                <Input
+                  id="endereco"
+                  value={formData.localizacao}
+                  onChange={(e) => setFormData(prev => ({ ...prev, localizacao: e.target.value }))}
+                  placeholder="Ex: Rua das Flores, 123, Centro, São Paulo - SP"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Digite o endereço completo com número, bairro e cidade
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="raio_km">Raio (km)</Label>
+                <Input
+                  id="raio_km"
+                  type="number"
+                  step="0.1"
+                  value={formData.raio_km}
+                  onChange={(e) => setFormData(prev => ({ ...prev, raio_km: e.target.value }))}
+                  placeholder="5.0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Distância em km do endereço onde o anúncio será tocado
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Tipos de Serviço</Label>
@@ -382,20 +434,6 @@ const Campanhas = () => {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="endereco">Endereço Completo</Label>
-            <Input
-              id="endereco"
-              value={formData.localizacao}
-              onChange={(e) => setFormData(prev => ({ ...prev, localizacao: e.target.value }))}
-              placeholder="Ex: Rua das Flores, 123, Centro, São Paulo - SP"
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">
-              Digite o endereço completo com número, bairro e cidade
-            </p>
           </div>
 
           <div className="space-y-2">
