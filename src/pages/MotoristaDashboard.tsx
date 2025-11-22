@@ -628,12 +628,12 @@ export default function MotoristaDashboard() {
               {isRideActive ? (
                 <>
                   <Pause className="mr-2 h-6 w-6" />
-                  Finalizar Corrida
+                  Ganhos do dia em andamento
                 </>
               ) : (
                 <>
                   <Car className="mr-2 h-6 w-6" />
-                  Iniciar Corrida
+                  Iniciar Ganhos do Dia
                 </>
               )}
             </Button>
