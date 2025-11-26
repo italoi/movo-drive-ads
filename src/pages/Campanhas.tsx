@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, Edit, X } from "lucide-react";
+import { Loader2, Trash2, Edit, X, Play, Pause, Volume2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Campaign = {
@@ -34,6 +34,8 @@ const Campanhas = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -51,6 +53,14 @@ const Campanhas = () => {
 
   useEffect(() => {
     fetchCampaigns();
+    
+    // Cleanup ao desmontar
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   const fetchCampaigns = async () => {
@@ -184,10 +194,43 @@ const Campanhas = () => {
   };
 
   const handleRemoveAudio = (index: number) => {
+    // Parar se estiver tocando este áudio
+    if (currentlyPlaying === index && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setCurrentlyPlaying(null);
+    } else if (currentlyPlaying !== null && currentlyPlaying > index) {
+      // Ajustar índice se removeu um áudio anterior ao que está tocando
+      setCurrentlyPlaying(currentlyPlaying - 1);
+    }
+    
     setFormData(prev => ({
       ...prev,
       audio_urls: prev.audio_urls.filter((_, i) => i !== index)
     }));
+  };
+
+  const handlePlayPause = (index: number, url: string) => {
+    // Se já está tocando este áudio, pausar
+    if (currentlyPlaying === index && audioRef.current) {
+      audioRef.current.pause();
+      setCurrentlyPlaying(null);
+      return;
+    }
+    
+    // Se está tocando outro, parar o anterior e iniciar o novo
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    
+    audioRef.current = new Audio(url);
+    audioRef.current.play();
+    setCurrentlyPlaying(index);
+    
+    // Quando terminar, resetar o estado
+    audioRef.current.onended = () => {
+      setCurrentlyPlaying(null);
+    };
   };
 
   const handleEditCampaign = (campaign: Campaign) => {
@@ -209,6 +252,13 @@ const Campanhas = () => {
   };
 
   const handleCancelEdit = () => {
+    // Parar áudio se estiver tocando
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setCurrentlyPlaying(null);
+    
     setEditingCampaign(null);
     setFormData({
       titulo: "",
@@ -458,6 +508,20 @@ const Campanhas = () => {
                 <div className="space-y-2">
                   {formData.audio_urls.map((url, index) => (
                     <div key={index} className="flex items-center gap-2 bg-secondary/30 p-2 rounded">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePlayPause(index, url)}
+                        className="hover:bg-primary/20"
+                      >
+                        {currentlyPlaying === index ? (
+                          <Pause className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Play className="w-4 h-4 text-primary" />
+                        )}
+                      </Button>
+                      <Volume2 className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm flex-1">Áudio {index + 1}</span>
                       <Button
                         type="button"
