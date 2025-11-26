@@ -204,9 +204,22 @@ export default function MotoristaDashboard() {
     }
   };
 
+  const unlockAudioContext = () => {
+    // Create a silent audio to unlock the AudioContext on user interaction
+    const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+    silentAudio.play().then(() => {
+      console.log('[unlockAudioContext] ✅ Audio context unlocked successfully');
+    }).catch((err) => {
+      console.log('[unlockAudioContext] Audio unlock attempt (expected to fail silently):', err);
+    });
+  };
+
   const handleStartRide = async () => {
     if (!isRideActive) {
       console.log('[handleStartRide] 🚗 Starting new ride...');
+      
+      // Unlock audio context immediately on user interaction
+      unlockAudioContext();
       
       const location = await getCurrentLocation();
       
@@ -380,9 +393,9 @@ export default function MotoristaDashboard() {
   };
 
   const handlePlayAd = async (location?: { lat: number; lng: number }, isStartOfRide: boolean = false) => {
-    console.log('[handlePlayAd] 🎵 Attempting to play ad...', { isStartOfRide, isRideActive });
+    console.log('[handlePlayAd] 🎵 Attempting to play ad...', { isStartOfRide, isRideActiveRef: isRideActiveRef.current });
     
-    if (!isRideActive) {
+    if (!isRideActiveRef.current) {
       console.log('[handlePlayAd] ❌ Ride not active, aborting');
       toast({
         title: "Inicie uma corrida primeiro",
@@ -429,22 +442,45 @@ export default function MotoristaDashboard() {
 
     // Get first audio URL from the array
     const audioUrl = campaignData.audio_urls[0];
+    console.log('[handlePlayAd] 🔊 Audio URL:', audioUrl);
 
     // Create audio element and play
+    console.log('[handlePlayAd] Creating Audio object...');
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
+    audio.addEventListener('canplaythrough', () => {
+      console.log('[handlePlayAd] ✅ Audio ready to play (canplaythrough)');
+    });
+
     audio.onloadeddata = () => {
-      console.log('Audio loaded, starting playback');
-      audio.play().catch(error => {
-        console.error('Error playing audio:', error);
-        toast({
-          title: "Erro ao tocar áudio",
-          description: "Não foi possível reproduzir o anúncio",
-          variant: "destructive",
+      console.log('[handlePlayAd] 📥 Audio loaded, attempting play...');
+      audio.play()
+        .then(() => {
+          console.log('[handlePlayAd] ✅ Audio playback started successfully');
+        })
+        .catch(error => {
+          console.error('[handlePlayAd] ❌ Autoplay blocked or error:', error);
+          
+          // Show toast with manual play button
+          toast({
+            title: "Clique para ouvir o anúncio",
+            description: "Seu navegador bloqueou a reprodução automática",
+            action: (
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  audio.play()
+                    .then(() => console.log('[handlePlayAd] ✅ Manual play successful'))
+                    .catch(err => console.error('[handlePlayAd] ❌ Manual play failed:', err));
+                }}
+              >
+                ▶ Tocar
+              </Button>
+            ),
+          });
+          setIsPlaying(false);
         });
-        setIsPlaying(false);
-      });
     };
 
     audio.onplay = async () => {
