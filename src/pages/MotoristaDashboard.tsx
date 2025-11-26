@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Pause, LogOut, Car, MapPin, UserCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Geolocation } from '@capacitor/geolocation';
 import movoLogo from "@/assets/movo-logo-corrected.png";
 import {
@@ -32,6 +33,11 @@ export default function MotoristaDashboard() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isRideActiveRef = useRef<boolean>(false);
+  
+  // Playlist management states
+  const [playlistCampaigns, setPlaylistCampaigns] = useState<any[]>([]);
+  const [currentCampaignIndex, setCurrentCampaignIndex] = useState(0);
+  const [currentPlaylistAudioIndex, setCurrentPlaylistAudioIndex] = useState(0);
 
   const clearCountdown = () => {
     if (countdownIntervalRef.current) {
@@ -214,6 +220,169 @@ export default function MotoristaDashboard() {
     });
   };
 
+  const preparePlaylist = async () => {
+    console.log('[preparePlaylist] 🎵 Preparing playlist...');
+    
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 8); // "HH:MM:SS"
+    
+    // Filter campaigns that are available now
+    const availableCampaigns = campaigns.filter(campaign => {
+      const hasAudio = campaign.audio_urls && campaign.audio_urls.length > 0;
+      const matchesService = campaign.tipos_servico_segmentados?.includes(tipoServico);
+      const inTimeRange = currentTime >= campaign.horario_inicio && currentTime <= campaign.horario_fim;
+      
+      console.log(`[preparePlaylist] Campaign "${campaign.titulo}":`, {
+        hasAudio,
+        matchesService,
+        inTimeRange,
+        currentTime,
+        horarioInicio: campaign.horario_inicio,
+        horarioFim: campaign.horario_fim
+      });
+      
+      return hasAudio && matchesService && inTimeRange;
+    });
+    
+    console.log(`[preparePlaylist] ✅ Found ${availableCampaigns.length} available campaigns`);
+    
+    setPlaylistCampaigns(availableCampaigns);
+    setCurrentCampaignIndex(0);
+    setCurrentPlaylistAudioIndex(0);
+    
+    return availableCampaigns;
+  };
+
+  const logAdPlay = async (campaignId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("ad_play_logs").insert({
+      campaign_id: campaignId,
+      driver_id: user.id,
+    });
+
+    if (error) {
+      console.error('[logAdPlay] ❌ Error logging ad play:', error);
+    } else {
+      console.log('[logAdPlay] ✅ Ad play logged successfully');
+      getTotalPlays();
+      
+      toast({
+        title: "Anúncio concluído! ✓",
+        description: "Você ganhou crédito por este anúncio",
+      });
+    }
+  };
+
+  const playNextFromPlaylist = async () => {
+    if (!isRideActiveRef.current || playlistCampaigns.length === 0) {
+      console.log('[playNextFromPlaylist] ❌ Cannot play - ride inactive or no campaigns');
+      return;
+    }
+
+    const campaign = playlistCampaigns[currentCampaignIndex];
+    const audioUrl = campaign.audio_urls[currentPlaylistAudioIndex];
+
+    console.log(`[playNextFromPlaylist] 🎵 Playing:`);
+    console.log(`  - Campaign: ${currentCampaignIndex + 1}/${playlistCampaigns.length} - "${campaign.titulo}"`);
+    console.log(`  - Audio: ${currentPlaylistAudioIndex + 1}/${campaign.audio_urls.length}`);
+
+    setCurrentCampaign(campaign);
+    setIsPlaying(true);
+
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+
+    audio.addEventListener('canplaythrough', () => {
+      console.log('[playNextFromPlaylist] ✅ Audio ready to play');
+    });
+
+    audio.onloadeddata = () => {
+      console.log('[playNextFromPlaylist] 📥 Audio loaded, attempting play...');
+      audio.play()
+        .then(() => {
+          console.log('[playNextFromPlaylist] ✅ Audio playback started');
+        })
+        .catch(error => {
+          console.error('[playNextFromPlaylist] ❌ Autoplay blocked:', error);
+          
+          toast({
+            title: "Clique para ouvir o anúncio",
+            description: "Seu navegador bloqueou a reprodução automática",
+            action: (
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  audio.play()
+                    .then(() => console.log('[playNextFromPlaylist] ✅ Manual play successful'))
+                    .catch(err => console.error('[playNextFromPlaylist] ❌ Manual play failed:', err));
+                }}
+              >
+                ▶ Tocar
+              </Button>
+            ),
+          });
+          setIsPlaying(false);
+        });
+    };
+
+    audio.onended = async () => {
+      console.log('[playNextFromPlaylist] 🎵 Audio ended');
+      setIsPlaying(false);
+
+      // Log the completed ad play
+      await logAdPlay(campaign.id);
+
+      // Calculate next audio/campaign
+      let nextAudioIndex = currentPlaylistAudioIndex + 1;
+      let nextCampaignIndex = currentCampaignIndex;
+
+      // Check if we finished all audios in this campaign
+      if (nextAudioIndex >= campaign.audio_urls.length) {
+        console.log('[playNextFromPlaylist] ✅ Finished all audios in campaign');
+        nextAudioIndex = 0;
+        nextCampaignIndex = currentCampaignIndex + 1;
+
+        // Check if we finished all campaigns - LOOP back to first
+        if (nextCampaignIndex >= playlistCampaigns.length) {
+          console.log('[playNextFromPlaylist] 🔄 Finished all campaigns - LOOPING back to first!');
+          nextCampaignIndex = 0;
+          toast({
+            title: "🔄 Reiniciando playlist",
+            description: "Todas as campanhas foram tocadas. Recomeçando do início!",
+          });
+        }
+      }
+
+      setCurrentPlaylistAudioIndex(nextAudioIndex);
+      setCurrentCampaignIndex(nextCampaignIndex);
+
+      // Wait 45 seconds and play next
+      console.log('[playNextFromPlaylist] ⏰ Starting 45s countdown for next audio...');
+      startCountdown(45, () => {
+        if (isRideActiveRef.current) {
+          playNextFromPlaylist();
+        }
+      });
+    };
+
+    audio.onerror = (error) => {
+      console.error('[playNextFromPlaylist] ❌ Audio error:', error);
+      setIsPlaying(false);
+      toast({
+        title: "Erro no áudio",
+        description: "Houve um problema ao tocar o anúncio",
+        variant: "destructive",
+      });
+
+      // Try next audio after 5 seconds
+      if (isRideActiveRef.current) {
+        setTimeout(() => playNextFromPlaylist(), 5000);
+      }
+    };
+  };
+
   const handleStartRide = async () => {
     if (!isRideActive) {
       console.log('[handleStartRide] 🚗 Starting new ride...');
@@ -232,28 +401,34 @@ export default function MotoristaDashboard() {
         return;
       }
 
+      // Prepare playlist
+      const playlist = await preparePlaylist();
+      
+      if (playlist.length === 0) {
+        toast({
+          title: "Sem campanhas",
+          description: "Nenhuma campanha disponível no momento para seu tipo de serviço",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsRideActive(true);
       isRideActiveRef.current = true;
       setCurrentAudioIndex(0);
-      console.log('[handleStartRide] ✅ Ride activated');
+      console.log('[handleStartRide] ✅ Ride activated with playlist of', playlist.length, 'campaigns');
 
       toast({
         title: "Corrida iniciada!",
-        description: "Sistema buscando melhor campanha para você... Primeiro anúncio em 15 segundos!",
+        description: `${playlist.length} ${playlist.length === 1 ? 'campanha' : 'campanhas'} na playlist. Primeiro anúncio em 15s!`,
       });
       
-      // Start 15s countdown then play first ad (marking as start of ride)
+      // Start 15s countdown then play first audio from playlist
       startCountdown(15, () => {
-        if (!isRideActiveRef.current) return;
-        console.log('[handleStartRide] ⏰ 15s countdown finished, fetching first ad...');
-        
-        // For the first ad, pass is_start_of_ride flag
-        getCurrentLocation().then(location => {
-          if (location && isRideActiveRef.current) {
-            console.log('[handleStartRide] 📍 Location obtained, calling handlePlayAd with is_start_of_ride=true');
-            handlePlayAd(location, true); // true = is start of ride
-          }
-        });
+        if (isRideActiveRef.current) {
+          console.log('[handleStartRide] ⏰ 15s countdown finished, starting playlist...');
+          playNextFromPlaylist();
+        }
       });
     } else {
       setIsRideActive(false);
@@ -272,6 +447,11 @@ export default function MotoristaDashboard() {
         playTimeoutRef.current = null;
       }
       clearCountdown();
+      
+      // Reset playlist state
+      setPlaylistCampaigns([]);
+      setCurrentCampaignIndex(0);
+      setCurrentPlaylistAudioIndex(0);
       
       toast({
         title: "Corrida finalizada",
@@ -694,28 +874,53 @@ export default function MotoristaDashboard() {
                   Pausar Anúncio
                 </Button>
 
-                {/* Lista de anúncios que serão tocados */}
+                {/* Playlist Progress */}
+                {playlistCampaigns.length > 0 && (
+                  <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4 mt-4">
+                    <div className="text-center mb-3">
+                      <p className="text-xs text-muted-foreground mb-1">Progresso da Playlist</p>
+                      <p className="text-lg font-bold">
+                        Campanha {currentCampaignIndex + 1} de {playlistCampaigns.length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {currentCampaign?.titulo || 'Carregando...'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Áudio {currentPlaylistAudioIndex + 1} de {currentCampaign?.audio_urls?.length || 0}
+                      </p>
+                    </div>
+                    <Progress 
+                      value={((currentCampaignIndex / Math.max(playlistCampaigns.length, 1)) * 100)} 
+                      className="h-2"
+                    />
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                      🔄 Loop infinito ativo - Playlist reinicia após última campanha
+                    </p>
+                  </div>
+                )}
+
+                {/* Lista de anúncios da campanha atual */}
                 {currentCampaign && currentCampaign.audio_urls && (
                   <div className="bg-secondary/20 rounded-lg p-4 mt-4">
                     <h4 className="text-sm font-semibold mb-3 text-center">
-                      Lista de Anúncios ({currentCampaign.audio_urls.length} total)
+                      Anúncios da Campanha Atual ({currentCampaign.audio_urls.length} total)
                     </h4>
                     <div className="space-y-2">
                       {currentCampaign.audio_urls.map((audioUrl: string, index: number) => (
                         <div
                           key={index}
                           className={`flex items-center gap-3 p-3 rounded-md transition-colors ${
-                            index === currentAudioIndex && isPlaying
+                            index === currentPlaylistAudioIndex && isPlaying
                               ? 'bg-primary/20 border-2 border-primary'
                               : 'bg-background/50'
                           }`}
                         >
                           <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                            index === currentAudioIndex && isPlaying
+                            index === currentPlaylistAudioIndex && isPlaying
                               ? 'bg-primary text-primary-foreground'
                               : 'bg-muted text-muted-foreground'
                           }`}>
-                            {index === currentAudioIndex && isPlaying ? (
+                            {index === currentPlaylistAudioIndex && isPlaying ? (
                               <Play className="h-4 w-4" />
                             ) : (
                               <span className="text-sm font-semibold">{index + 1}</span>
@@ -726,13 +931,13 @@ export default function MotoristaDashboard() {
                               Anúncio {index + 1}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {index === currentAudioIndex
+                              {index === currentPlaylistAudioIndex
                                 ? (isPlaying
                                     ? '🔊 Tocando agora'
-                                    : `Aguardando (${countdown ?? 0}s)`)
-                                : index < currentAudioIndex
+                                    : `Próximo (${countdown ?? 0}s)`)
+                                : index < currentPlaylistAudioIndex
                                 ? '✓ Já tocado'
-                                : `Aguardando (${(index - currentAudioIndex) * 45}s)`}
+                                : 'Aguardando'}
                             </p>
                           </div>
                         </div>
@@ -745,8 +950,8 @@ export default function MotoristaDashboard() {
 
             <p className="text-sm text-muted-foreground">
               {isRideActive 
-                ? "Os anúncios serão selecionados automaticamente baseados em sua localização e tipo de serviço"
-                : "Inicie a corrida e o sistema buscará as melhores campanhas para você"}
+                ? "O sistema está tocando todas as campanhas disponíveis em loop contínuo"
+                : "Inicie a corrida e o sistema tocará todas as campanhas disponíveis em sequência"}
             </p>
           </div>
         </Card>
