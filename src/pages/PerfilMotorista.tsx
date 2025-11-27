@@ -13,7 +13,7 @@ import { z } from "zod";
 
 const profileSchema = z.object({
   nome: z.string().trim().min(3, "Nome deve ter no mínimo 3 caracteres").max(100, "Nome muito longo"),
-  tipo_servico: z.enum(["taxi", "uber", "99", "outro"], {
+  tipo_servico: z.enum(["Taxi", "99", "X", "Comfort", "Black", "Premium", "XL", "Moto", "Outro"], {
     errorMap: () => ({ message: "Selecione um tipo de serviço" })
   })
 });
@@ -191,16 +191,10 @@ const PerfilMotorista = () => {
                   <SelectValue placeholder="Selecione o tipo de serviço" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="taxi">
+                  <SelectItem value="Taxi">
                     <div className="flex items-center gap-2">
                       <Car className="h-4 w-4" />
                       Táxi
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="uber">
-                    <div className="flex items-center gap-2">
-                      <Car className="h-4 w-4" />
-                      Uber
                     </div>
                   </SelectItem>
                   <SelectItem value="99">
@@ -209,7 +203,43 @@ const PerfilMotorista = () => {
                       99
                     </div>
                   </SelectItem>
-                  <SelectItem value="outro">
+                  <SelectItem value="X">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber X
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Comfort">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber Comfort
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Black">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber Black
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Premium">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber Premium
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="XL">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber XL
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Moto">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4" />
+                      Uber Moto
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Outro">
                     <div className="flex items-center gap-2">
                       <Car className="h-4 w-4" />
                       Outro
