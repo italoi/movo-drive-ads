@@ -38,6 +38,11 @@ export default function MotoristaDashboard() {
   const [playlistCampaigns, setPlaylistCampaigns] = useState<any[]>([]);
   const [currentCampaignIndex, setCurrentCampaignIndex] = useState(0);
   const [currentPlaylistAudioIndex, setCurrentPlaylistAudioIndex] = useState(0);
+  
+  // Playlist refs to avoid stale closure
+  const playlistRef = useRef<any[]>([]);
+  const currentCampaignIndexRef = useRef<number>(0);
+  const currentAudioIndexRef = useRef<number>(0);
 
   const clearCountdown = () => {
     if (countdownIntervalRef.current) {
@@ -246,9 +251,15 @@ export default function MotoristaDashboard() {
     
     console.log(`[preparePlaylist] ✅ Found ${availableCampaigns.length} available campaigns`);
     
+    // Update both state (for UI) and refs (for functions)
     setPlaylistCampaigns(availableCampaigns);
+    playlistRef.current = availableCampaigns;
+    
     setCurrentCampaignIndex(0);
+    currentCampaignIndexRef.current = 0;
+    
     setCurrentPlaylistAudioIndex(0);
+    currentAudioIndexRef.current = 0;
     
     return availableCampaigns;
   };
@@ -276,17 +287,18 @@ export default function MotoristaDashboard() {
   };
 
   const playNextFromPlaylist = async () => {
-    if (!isRideActiveRef.current || playlistCampaigns.length === 0) {
+    // Use refs to avoid stale closure
+    if (!isRideActiveRef.current || playlistRef.current.length === 0) {
       console.log('[playNextFromPlaylist] ❌ Cannot play - ride inactive or no campaigns');
       return;
     }
 
-    const campaign = playlistCampaigns[currentCampaignIndex];
-    const audioUrl = campaign.audio_urls[currentPlaylistAudioIndex];
+    const campaign = playlistRef.current[currentCampaignIndexRef.current];
+    const audioUrl = campaign.audio_urls[currentAudioIndexRef.current];
 
     console.log(`[playNextFromPlaylist] 🎵 Playing:`);
-    console.log(`  - Campaign: ${currentCampaignIndex + 1}/${playlistCampaigns.length} - "${campaign.titulo}"`);
-    console.log(`  - Audio: ${currentPlaylistAudioIndex + 1}/${campaign.audio_urls.length}`);
+    console.log(`  - Campaign: ${currentCampaignIndexRef.current + 1}/${playlistRef.current.length} - "${campaign.titulo}"`);
+    console.log(`  - Audio: ${currentAudioIndexRef.current + 1}/${campaign.audio_urls.length}`);
 
     setCurrentCampaign(campaign);
     setIsPlaying(true);
@@ -334,18 +346,18 @@ export default function MotoristaDashboard() {
       // Log the completed ad play
       await logAdPlay(campaign.id);
 
-      // Calculate next audio/campaign
-      let nextAudioIndex = currentPlaylistAudioIndex + 1;
-      let nextCampaignIndex = currentCampaignIndex;
+      // Calculate next audio/campaign using refs
+      let nextAudioIndex = currentAudioIndexRef.current + 1;
+      let nextCampaignIndex = currentCampaignIndexRef.current;
 
       // Check if we finished all audios in this campaign
       if (nextAudioIndex >= campaign.audio_urls.length) {
         console.log('[playNextFromPlaylist] ✅ Finished all audios in campaign');
         nextAudioIndex = 0;
-        nextCampaignIndex = currentCampaignIndex + 1;
+        nextCampaignIndex = currentCampaignIndexRef.current + 1;
 
         // Check if we finished all campaigns - LOOP back to first
-        if (nextCampaignIndex >= playlistCampaigns.length) {
+        if (nextCampaignIndex >= playlistRef.current.length) {
           console.log('[playNextFromPlaylist] 🔄 Finished all campaigns - LOOPING back to first!');
           nextCampaignIndex = 0;
           toast({
@@ -355,6 +367,11 @@ export default function MotoristaDashboard() {
         }
       }
 
+      // Update refs (for internal logic)
+      currentAudioIndexRef.current = nextAudioIndex;
+      currentCampaignIndexRef.current = nextCampaignIndex;
+      
+      // Update states (for UI)
       setCurrentPlaylistAudioIndex(nextAudioIndex);
       setCurrentCampaignIndex(nextCampaignIndex);
 
@@ -448,10 +465,15 @@ export default function MotoristaDashboard() {
       }
       clearCountdown();
       
-      // Reset playlist state
+      // Reset playlist state and refs
       setPlaylistCampaigns([]);
+      playlistRef.current = [];
+      
       setCurrentCampaignIndex(0);
+      currentCampaignIndexRef.current = 0;
+      
       setCurrentPlaylistAudioIndex(0);
+      currentAudioIndexRef.current = 0;
       
       toast({
         title: "Corrida finalizada",
