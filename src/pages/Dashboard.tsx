@@ -2,10 +2,36 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
+import { Tables } from "@/integrations/supabase/types";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [users, setUsers] = useState<Tables<"profiles">[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error("Erro ao buscar usuários:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,13 +101,52 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">
-                Este é o dashboard administrativo do Movo. Apenas usuários com a role
+                Este é o dashboard administrativo da Movo. Apenas usuários com a role
                 'admin' podem acessar esta página.
               </p>
               <div className="flex gap-4">
                 <Button onClick={() => navigate('/campanhas')}>Criar Nova Campanha</Button>
                 <Button variant="outline" onClick={() => navigate('/relatorios')}>Ver Relatórios</Button>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Usuários da Plataforma</CardTitle>
+              <CardDescription>
+                Lista de todos os usuários cadastrados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-muted-foreground">Carregando...</p>
+              ) : users.length === 0 ? (
+                <p className="text-muted-foreground">Nenhum usuário encontrado.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Tipo de Serviço</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((profile) => (
+                      <TableRow key={profile.id}>
+                        <TableCell className="font-medium">{profile.nome}</TableCell>
+                        <TableCell>{profile.email || "N/A"}</TableCell>
+                        <TableCell>{profile.phone || "N/A"}</TableCell>
+                        <TableCell>{profile.tipo_servico}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>

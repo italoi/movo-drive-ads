@@ -29,7 +29,7 @@ export const Hero = () => {
           </div>
           
           <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed">
-            O Movo transforma o tempo das corridas em ganhos. Nosso sistema inteligente reproduz anúncios curtos em áudio para o passageiro, baseados 100% na localização do veículo.
+            A Movo transforma o tempo das corridas em ganhos. Nosso sistema inteligente reproduz anúncios curtos em áudio para o passageiro, baseados 100% na localização do veículo.
           </p>
           
           <div className="pt-4">
