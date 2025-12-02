@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import movoLogo from "@/assets/movo-logo-corrected.png";
+import movoLogo from "@/assets/logo.png";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -89,7 +89,7 @@ export default function MotoristaLogin() {
           <img
             src={movoLogo}
             alt="Movo Logo"
-            className="h-16 mx-auto mb-4"
+            className="h-24 mx-auto mb-4"
           />
           <h1 className="text-3xl font-bold mb-2">Login Motorista</h1>
           <p className="text-muted-foreground">
