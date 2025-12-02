@@ -5,6 +5,7 @@ import { DriverBenefits } from "@/components/DriverBenefits";
 import { AdvertiserBenefits } from "@/components/AdvertiserBenefits";
 import { LeadForm } from "@/components/LeadForm";
 import { Footer } from "@/components/Footer";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 
 const Index = () => {
   return (
@@ -16,6 +17,7 @@ const Index = () => {
       <DriverBenefits />
       <LeadForm />
       <Footer />
+      <WhatsAppButton />
     </div>
   );
 };
