@@ -25,9 +25,9 @@ export const DriverBenefits = () => {
   ];
 
   return (
-    <section className="py-24 px-6">
+    <section className="py-14 px-6">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             Para Motoristas: Ganhe mais sem fazer nada
           </h2>
