@@ -1,4 +1,4 @@
-import movoLogo from "@/assets/movo-logo.png";
+import movoLogo from "@/assets/logo.png";
 
 export const Footer = () => {
   return (
