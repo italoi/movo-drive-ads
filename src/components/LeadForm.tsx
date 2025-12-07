@@ -99,9 +99,9 @@ export const LeadForm = () => {
   };
 
   return (
-    <section id="lead-form" className="py-24 px-6">
+    <section id="lead-form" className="py-14 px-6">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-12 space-y-4">
+        <div className="text-center mb-8 space-y-4">
           <h2 className="text-4xl md:text-5xl font-bold">
             Faça parte da revolução da mídia em mobilidade
           </h2>

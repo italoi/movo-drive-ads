@@ -7,7 +7,7 @@ export const Hero = () => {
   };
 
   return (
-    <section className="min-h-screen pt-24 px-6 py-20 relative overflow-hidden">
+    <section className="pt-24 px-6 py-12 relative overflow-hidden">
       {/* Subtle city map pattern background */}
       <div 
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
